@@ -18,6 +18,12 @@ pub mod data {
     pub mod load;
 }
 
+pub mod report {
+    pub mod pdf {
+        pub mod base;
+    }
+}
+
 pub mod spinner;
 
 pub mod prelude {
