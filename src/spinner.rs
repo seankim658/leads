@@ -8,7 +8,7 @@ use std::time::Duration;
 
 /// Creates the progress indicator.
 ///
-/// ### Arguments
+/// ### Parameters
 ///
 /// - `message`: A message to display with the progress indicator.
 ///
@@ -31,7 +31,7 @@ pub fn setup_spinner(message: &str) -> ProgressBar {
 
 /// Suspends the spinner to print intermediate status messages.
 ///
-/// ### Arguments
+/// ### Parameters
 ///
 /// - `message`: The message to print.
 /// - `success`: Whether the message is a success or failure message.
