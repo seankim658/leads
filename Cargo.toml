@@ -13,6 +13,3 @@ indicatif = "0.17.8"
 pdfium-render = "0.8.22"
 polars = { version = "0.41.3", features = ["parquet"] }
 thiserror = "1.0.63"
-
-[build-dependencies]
-curl = "0.4"
