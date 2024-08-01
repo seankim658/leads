@@ -2,11 +2,17 @@
 name = "leads"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
+chrono = "0.4.38"
 clap = { version = "4.5.8", features = ["derive"] }
 colored = "2.1.0"
+indexmap = "2.3.0"
 indicatif = "0.17.8"
 pdfium-render = "0.8.22"
 polars = { version = "0.41.3", features = ["parquet"] }
 thiserror = "1.0.63"
+
+[build-dependencies]
+curl = "0.4"
