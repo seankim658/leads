@@ -1,56 +1,56 @@
+use core::panic;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const PDFIUM_VERSION: &str = "128.0.6611.0";
+const PDFIUM_VERSION: &str = "6569";
 
-fn main() {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let lib_dir = out_dir.join("lib");
-    fs::create_dir_all(&lib_dir).unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    eprintln!("Starting build script...");
 
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    eprintln!("Output directory: {}", out_dir.display());
 
-    // Check if PDFium is already installed.
-    if is_pdfium_installed() {
-        println!("PDFium is already installed on the system.");
-        return;
-    }
+    let target_os = env::var("CARGO_CFG_TARGET_OS")?;
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH")?;
+    eprintln!("Target OS: {}, Target Arch: {}", target_os, target_arch);
 
     let (url, filename) = get_pdfium_url(&target_os, &target_arch);
-    download_and_extract_pdfium(&lib_dir, &url, &filename);
+    eprintln!("PDFium URL: {}", url);
+    eprintln!("PDFium filename: {}", filename);
+
+    download_and_extract_pdfium(&out_dir, &url, &filename)?;
 
     // Tell Cargo to tell rustc to link the Library
+    let lib_name = get_lib_name(&target_os);
+    println!("cargo:rustc-env=PDFIUM_LIB_NAME={}", lib_name);
+    let lib_dir = out_dir.join("lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    println!("cargo:rustc-link-lib=dylib=pdfium");
+    eprintln!("Library search path: {}", lib_dir.display());
 
-    // Tell Cargo to re-run this script if the build script changes
-    println!("cargo:rerun-if-changed=build.rs");
-}
-
-/// Check common installation paths to see if PDFium is already installed.
-fn is_pdfium_installed() -> bool {
-    let common_paths = vec![
-        "/usr/lib/libpdfium.so",
-        "/usr/local/lib/libpdfium.so",
-        "C:\\Program Files\\PDFium\\pdfium.dll",
-        "/Library/Frameworks/PDFium.framework/PDFium",
-    ];
-
-    for path in common_paths {
-        if Path::new(path).exists() {
-            return true;
-        }
+    let lib_path = lib_dir.join(&lib_name);
+    // Verify library extraction.
+    if !lib_path.exists() {
+        panic!(
+            "Library not found at expected location: {}",
+            lib_path.display()
+        );
     }
 
-    false
+    println!("cargo:rustc-link-lib=dylib=pdfium");
+
+    println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", out_dir.display());
+
+    println!("cargo:rerun-if-changed=build.rs");
+
+    Ok(())
 }
 
 fn get_pdfium_url(target_os: &str, target_arch: &str) -> (String, String) {
     let base_url = format!(
-        "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/{}",
+        "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F{}",
         PDFIUM_VERSION
     );
     match (target_os, target_arch) {
@@ -90,27 +90,65 @@ fn get_pdfium_url(target_os: &str, target_arch: &str) -> (String, String) {
     }
 }
 
-fn download_and_extract_pdfium(lib_dir: &Path, url: &str, filename: &str) {
+fn download_and_extract_pdfium(
+    lib_dir: &Path,
+    url: &str,
+    filename: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    eprintln!("Downloading from URL: {}", url);
+    eprintln!("Saving to: {}", lib_dir.join(filename).display());
+
+    // Download the file.
     let output = Command::new("curl")
         .args(&["-L", "-o", &lib_dir.join(filename).to_str().unwrap(), url])
-        .output()
-        .expect("Failed to execute curl");
+        .output()?;
 
     if !output.status.success() {
-        panic!("Failed to download PDFium library");
+        eprintln!("curl stderr: {}", String::from_utf8_lossy(&output.stderr));
+        let error_message = format!(
+            "Failed to download PDFium library. Curl exit status: {}. Stderr: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Err(error_message.into());
     }
 
-    // Extract and download the archive.
-    Command::new("tar")
+    eprintln!("Download completed. Extracting...");
+
+    // Extract the archive.
+    let output = Command::new("tar")
         .args(&[
             "-xzf",
             &lib_dir.join(filename).to_str().unwrap(),
             "-C",
             lib_dir.to_str().unwrap(),
         ])
-        .output()
-        .expect("Failed to extract PDFium library");
+        .output()?;
+
+    if !output.status.success() {
+        eprintln!("tar stderr: {}", String::from_utf8_lossy(&output.stderr));
+        return Err("Failed to extract PDFium library".into());
+    }
+
+    eprintln!("Extraction completed. Cleaning up...");
 
     // Clean up the archive file.
-    fs::remove_file(lib_dir.join(filename)).unwrap();
+    fs::remove_file(lib_dir.join(filename))?;
+
+    eprintln!("Cleanup completed.\nCurrent files:");
+    for entry in fs::read_dir(lib_dir)? {
+        let entry = entry?;
+        eprintln!("  {}", entry.path().display());
+    }
+
+    Ok(())
+}
+
+fn get_lib_name(target_os: &str) -> String {
+    match target_os {
+        "windows" => "pdfium.dll".to_string(),
+        "macos" => "libpdfium.dylib".to_string(),
+        "linux" => "libpdfium.so".to_string(),
+        _ => panic!("Unsupported target OS: {}", target_os),
+    }
 }
