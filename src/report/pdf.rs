@@ -21,6 +21,8 @@ pub const ITALIC_FONT: PdfFontBuiltin = PdfFontBuiltin::HelveticaOblique;
 pub const SECTION_HEADER_FONT_SIZE: f32 = 24.0;
 /// Normal text font size.
 pub const FONT_SIZE: f32 = 16.0;
+/// Bottom page margin.
+pub const BOTTOM_MARGIN: f32 = 0.1;
 
 /// The error types for the pdf modules.
 #[derive(Error, Debug)]
@@ -37,8 +39,6 @@ pub struct PageManager<'a> {
     document: PdfDocument<'a>,
     /// The current page in the document.
     current_page: u32,
-    /// The current y position on the current page to keep track of when a new page should be created.
-    y_position: f32,
     /// The height of the current page.
     page_height: f32,
     /// The width of the current page.
@@ -49,6 +49,8 @@ pub struct PageManager<'a> {
     bold_font: PdfFontToken,
     /// The italic font.
     italic_font: PdfFontToken,
+    /// Section page tracker for table of contents.
+    section_page_map: IndexMap<String, u32>,
 }
 
 impl<'a> PageManager<'a> {
@@ -61,7 +63,6 @@ impl<'a> PageManager<'a> {
     /// ### Returns
     ///
     /// - `PageManager`: The new PageManager.
-    ///
     pub fn new(pdfium: &'a Pdfium) -> Result<Self, PdfError> {
         let mut document = pdfium.create_new_pdf()?;
         let font = document.fonts_mut().new_built_in(FONT);
@@ -70,13 +71,26 @@ impl<'a> PageManager<'a> {
         Ok(PageManager {
             document,
             current_page: 0,
-            y_position: 0.0,
             page_height: PAPER_SIZE.height().value,
             page_width: PAPER_SIZE.width().value,
             font,
             bold_font,
             italic_font,
+            section_page_map: IndexMap::new(),
         })
+    }
+
+    /// Generates the final report.
+    ///
+    /// ### Parameters
+    ///
+    /// - `data_title`: Title of the dataset.
+    /// - `column_types`: Index map of the columns and their corresponding data types.
+    pub fn generate_report(&mut self, data_title: &str, column_types: &IndexMap<String, DataType>) -> Result<(), PdfError> {
+        self.create_title_page(data_title)?;
+        self.create_data_types_page(column_types)?;
+        self.create_table_of_contents()?;
+        Ok(())
     }
 
     /// Create the report title page.
@@ -88,7 +102,6 @@ impl<'a> PageManager<'a> {
     /// ### Returns
     ///
     /// - `Result<(), PdfError>`: Unit type or a propagated PdfError.
-    ///
     pub fn create_title_page(&mut self, data_title: &str) -> Result<(), PdfError> {
         let mut page = self
             .document
@@ -139,22 +152,103 @@ impl<'a> PageManager<'a> {
         page.objects_mut().add_text_object(date_object)?;
 
         self.current_page += 1;
-        self.y_position = 0.0;
 
         Ok(())
     }
 
+    /// Creates the table of contents page(s).
     ///
+    /// ### Returns
+    ///
+    /// - `Result<u32, PdfError>`: Unit type or a propagated PdfError.
+    pub fn create_table_of_contents(&mut self) -> Result<u32, PdfError> {
+        let start_page = 1;
+        self.insert_page_at(start_page)?;
+        let mut pages_added = 1;
+
+        self.add_text(
+            "Table of Contents",
+            self.bold_font,
+            SECTION_HEADER_FONT_SIZE,
+            0.1,
+            0.9,
+            None,
+        )?;
+
+        let mut y_fraction = 0.85;
+        let line_height_fraction = FONT_SIZE / self.page_height;
+
+        let sections: Vec<(String, u32)> = self
+            .section_page_map
+            .iter()
+            .map(|(name, &page)| (name.clone(), page))
+            .collect();
+
+        for (section_name, page_number) in sections {
+            if self.need_new_page(y_fraction, line_height_fraction) {
+                self.insert_page_at(start_page + pages_added)?;
+                pages_added += 1;
+                y_fraction = 0.9;
+            }
+
+            let text = format!(
+                "{} ........................... {}",
+                section_name,
+                page_number + pages_added as u32
+            );
+            self.add_text(&text, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+            y_fraction -= line_height_fraction;
+        }
+
+        for page_number in self.section_page_map.values_mut() {
+            *page_number += pages_added as u32;
+        }
+
+        Ok(pages_added as u32)
+    }
+
+    /// Creates the column type overview page.
+    ///
+    /// ### Parameters
+    ///
+    /// - `column_types`: The index map of the column names and corresponding data types.
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<(), PdfError>`: Unit type or the propagated PdfError.
     pub fn create_data_types_page(
         &mut self,
         column_types: &IndexMap<String, DataType>,
     ) -> Result<(), PdfError> {
-        let mut title_object = PdfPageTextObject::new(
-            &self.document,
+        self.new_page()?;
+
+        self.section_page_map
+            .insert("Data Types Overview".to_owned(), self.current_page - 1);
+        self.add_text(
             "Data Types Overview",
             self.bold_font,
-            PdfPoints::new(SECTION_HEADER_FONT_SIZE),
+            SECTION_HEADER_FONT_SIZE,
+            0.1,
+            0.9,
+            None,
         )?;
+
+        let mut y_fraction = 0.85;
+        let line_height_fraction = FONT_SIZE / self.page_height;
+
+        for (column_name, data_type) in column_types {
+            if self.need_new_page(y_fraction, line_height_fraction) {
+                self.new_page()?;
+                y_fraction = 0.9;
+            }
+
+            let text = format!("{}: {}", column_name, data_type);
+            self.add_text(&text, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+
+            y_fraction -= line_height_fraction;
+        }
+
+        Ok(())
     }
 
     /// Saves the document to disk.
@@ -166,41 +260,68 @@ impl<'a> PageManager<'a> {
     /// ### Returns
     ///
     /// - `Result<(), PdfError>`: Unit type of a propagated PdfError.
-    ///
     pub fn save_to_file(&self, path: &PathBuf) -> Result<(), PdfError> {
         self.document.save_to_file(path)?;
         Ok(())
     }
 
-    /// Helper function to create and position a text object on the page.
+    /// Helper function to add text to a page.
     ///
     /// ### Parameters
     ///
     /// - `text`: The text content.
     /// - `font`: The font to use.
     /// - `font_size`: The font size.
-    /// - `x`: The x-coordinate (in points).
-    /// - `y`: The y-coordinate (in points).
+    /// - `x_fraction`: The x fraction to place the text.
+    /// - `y_fraction`: The y fraction to place the text.
     /// - `color`: Optional color (defaults to black if None).
     ///
     /// ### Returns
     ///
     /// - `Result<PdfPageTextObject, PdfError>`: The created and positioned text object or a PDF
     /// error.
-    ///
-    fn create_text_object(
-        &self,
+    fn add_text(
+        &mut self,
         text: &str,
         font: PdfFontToken,
         font_size: f32,
-        x: f32,
-        y: f32,
+        x_fraction: f32,
+        y_fraction: f32,
         color: Option<PdfColor>,
-    ) -> Result<PdfPageTextObject, PdfError> {
+    ) -> Result<(), PdfError> {
         let mut text_object =
             PdfPageTextObject::new(&self.document, text, font, PdfPoints::new(font_size))?;
         text_object.set_fill_color(color.unwrap_or(PdfColor::new(0, 0, 0, 255)))?;
-        text_object.translate(PdfPoints::new(x), PdfPoints::new(y))?;
-        Ok(text_object)
+        text_object.translate(
+            PdfPoints::new(self.page_width * x_fraction),
+            PdfPoints::new(self.page_height * y_fraction),
+        )?;
+        let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
+        current_page.objects_mut().add_text_object(text_object)?;
+        Ok(())
+    }
+
+    /// Creates a new page at the end of the document.
+    fn new_page(&mut self) -> Result<(), PdfError> {
+        self.document
+            .pages_mut()
+            .create_page_at_end(PdfPagePaperSize::new_portrait(PAPER_SIZE))?;
+        self.current_page = self.document.pages().len() as u32 - 1;
+        Ok(())
+    }
+
+    /// Creates a new page at a specified index in the document.
+    fn insert_page_at(&mut self, index: u16) -> Result<(), PdfError> {
+        self.document
+            .pages_mut()
+            .create_page_at_index(PdfPagePaperSize::new_portrait(PAPER_SIZE), index)?;
+        self.current_page = index as u32;
+        Ok(())
+    }
+
+    /// Based on the Y coordinate page fraction and the content height fraction determine whether a
+    /// new page is needed.
+    fn need_new_page(&self, y_fraction: f32, content_height_fraction: f32) -> bool {
+        y_fraction - content_height_fraction < BOTTOM_MARGIN
     }
 }
