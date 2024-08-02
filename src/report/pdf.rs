@@ -3,9 +3,11 @@
 //! Handles the base implementation of generating a comprehensive PDF report with the exploratory
 //! analysis findings.
 
+use indexmap::IndexMap;
 use pdfium_render::prelude::*;
-use thiserror::Error;
+use polars::datatypes::DataType;
 use std::path::PathBuf;
+use thiserror::Error;
 
 /// The default paper size.
 pub const PAPER_SIZE: PdfPagePaperStandardSize = PdfPagePaperStandardSize::A4;
@@ -15,6 +17,10 @@ pub const FONT: PdfFontBuiltin = PdfFontBuiltin::Helvetica;
 pub const BOLD_FONT: PdfFontBuiltin = PdfFontBuiltin::HelveticaBold;
 /// The default italic font.
 pub const ITALIC_FONT: PdfFontBuiltin = PdfFontBuiltin::HelveticaOblique;
+/// Section header font size.
+pub const SECTION_HEADER_FONT_SIZE: f32 = 24.0;
+/// Normal text font size.
+pub const FONT_SIZE: f32 = 16.0;
 
 /// The error types for the pdf modules.
 #[derive(Error, Debug)]
@@ -94,7 +100,7 @@ impl<'a> PageManager<'a> {
             &self.document,
             "Exploratory Data Analysis Report",
             self.bold_font,
-            PdfPoints::new(24.0),
+            PdfPoints::new(48.0),
         )?;
         title_object.set_fill_color(PdfColor::new(0, 0, 0, 255))?;
         title_object.translate(
@@ -118,7 +124,7 @@ impl<'a> PageManager<'a> {
         page.objects_mut().add_text_object(dataset_title_object)?;
 
         // Add date.
-        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let date = chrono::Local::now().format("%m-%d-%Y").to_string();
         let mut date_object = PdfPageTextObject::new(
             &self.document,
             format!("Generated on: {}", date),
@@ -138,6 +144,19 @@ impl<'a> PageManager<'a> {
         Ok(())
     }
 
+    ///
+    pub fn create_data_types_page(
+        &mut self,
+        column_types: &IndexMap<String, DataType>,
+    ) -> Result<(), PdfError> {
+        let mut title_object = PdfPageTextObject::new(
+            &self.document,
+            "Data Types Overview",
+            self.bold_font,
+            PdfPoints::new(SECTION_HEADER_FONT_SIZE),
+        )?;
+    }
+
     /// Saves the document to disk.
     ///
     /// ### Parameters
@@ -151,5 +170,37 @@ impl<'a> PageManager<'a> {
     pub fn save_to_file(&self, path: &PathBuf) -> Result<(), PdfError> {
         self.document.save_to_file(path)?;
         Ok(())
+    }
+
+    /// Helper function to create and position a text object on the page.
+    ///
+    /// ### Parameters
+    ///
+    /// - `text`: The text content.
+    /// - `font`: The font to use.
+    /// - `font_size`: The font size.
+    /// - `x`: The x-coordinate (in points).
+    /// - `y`: The y-coordinate (in points).
+    /// - `color`: Optional color (defaults to black if None).
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<PdfPageTextObject, PdfError>`: The created and positioned text object or a PDF
+    /// error.
+    ///
+    fn create_text_object(
+        &self,
+        text: &str,
+        font: PdfFontToken,
+        font_size: f32,
+        x: f32,
+        y: f32,
+        color: Option<PdfColor>,
+    ) -> Result<PdfPageTextObject, PdfError> {
+        let mut text_object =
+            PdfPageTextObject::new(&self.document, text, font, PdfPoints::new(font_size))?;
+        text_object.set_fill_color(color.unwrap_or(PdfColor::new(0, 0, 0, 255)))?;
+        text_object.translate(PdfPoints::new(x), PdfPoints::new(y))?;
+        Ok(text_object)
     }
 }
