@@ -42,7 +42,7 @@ fn main() -> LeadsResult<()> {
 
     // TODO Start exploratory analysis.
 
-    // Create report.
+    // Create page manager.
     let pdfium = Pdfium::default();
     let mut page_manager = handle_operation(
         || PageManager::new(&pdfium),
@@ -51,11 +51,11 @@ fn main() -> LeadsResult<()> {
         &spinner,
     )?;
 
-    // Create title page.
+    // Generate the report.
     handle_operation(
-        || page_manager.create_title_page(&data.data_title),
-        "Created title page.",
-        "Failed to create title page.",
+        || page_manager.generate_report(&data.data_title, &data.column_types),
+        "Finished report generation.",
+        "Failed to generate report.",
         &spinner,
     )?;
 
