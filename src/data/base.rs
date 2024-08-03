@@ -6,10 +6,9 @@
 //! ```
 //! ```
 
-use polars::prelude::*;
 use indexmap::IndexMap;
+use polars::prelude::*;
 use std::ffi::OsStr;
-use std::fs::File;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -23,6 +22,10 @@ pub enum DataError {
     /// Occurs when Polars fails to complete an operation.
     #[error("Polars error: {0}")]
     Polars(#[from] polars::error::PolarsError),
+
+    /// Occurs when Polars fails to lazy infer the schema.
+    #[error("Polars schema error: {0}")]
+    PolarsSchema(String),
 
     /// Occurs when an unsupported file format is passed.
     #[error("Unsupported file format: {0}")]
@@ -48,7 +51,7 @@ pub struct DataInfo {
     /// The column names (or indices) of the dataset.
     pub column_types: IndexMap<String, DataType>,
     /// The polars dataframe of the data.
-    pub data: DataFrame,
+    pub data: LazyFrame,
 }
 
 impl DataInfo {
@@ -63,11 +66,8 @@ impl DataInfo {
     /// - `Result<Self, DataError>`: The DataInfo struct or a propagated Dataerror.
     ///
     pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, DataError> {
-        let headers = match headers {
-            Some(headers) => headers,
-            None => true,
-        };
-        let data = read_file(path, headers)?;
+        let headers = headers.unwrap_or(true);
+        let mut lazy_df = read_file(path, headers)?;
 
         let data_title = path
             .as_path()
@@ -78,25 +78,31 @@ impl DataInfo {
                 DataError::FilenameParse(path.to_str().unwrap_or_default().to_owned())
             })?;
 
-        let dtypes = data.dtypes();
-        let mut column_types: IndexMap<String, DataType> = IndexMap::new();
-        for (index, &col) in data.get_column_names().iter().enumerate() {
-            let col_name = col.to_owned();
-            if column_types.contains_key(&col_name) {
-                return Err(DataError::DuplicateHeader(col_name));
+        let schema = lazy_df
+            .schema()
+            .map_err(|e| DataError::PolarsSchema(format!("Unable to infer data schema: {}", e)))?;
+        let column_types: IndexMap<String, DataType> = schema
+            .iter()
+            .map(|(name, dtype)| (name.to_string(), dtype.clone()))
+            .collect();
+
+        // Check for duplicate headers.
+        let mut seen_columns = std::collections::HashSet::new();
+        for column_name in column_types.keys() {
+            if !seen_columns.insert(column_name) {
+                return Err(DataError::DuplicateHeader(column_name.clone()));
             }
-            column_types.insert(col_name, dtypes[index].to_owned());
         }
 
         Ok(DataInfo {
             data_title,
             column_types,
-            data,
+            data: lazy_df,
         })
     }
 }
 
-fn read_file(path: &PathBuf, headers: bool) -> Result<DataFrame, DataError> {
+fn read_file(path: &PathBuf, headers: bool) -> Result<LazyFrame, DataError> {
     match path.extension().and_then(OsStr::to_str) {
         Some("csv") => read_csv(path, headers),
         Some("tsv") => read_tsv(path, headers),
@@ -106,24 +112,22 @@ fn read_file(path: &PathBuf, headers: bool) -> Result<DataFrame, DataError> {
     }
 }
 
-fn read_csv(path: &PathBuf, headers: bool) -> Result<DataFrame, DataError> {
-    let df = CsvReadOptions::default()
+fn read_csv(path: &PathBuf, headers: bool) -> Result<LazyFrame, DataError> {
+    let df = LazyCsvReader::new(path.to_str().unwrap())
         .with_has_header(headers)
-        .try_into_reader_with_file_path(Some(path.into()))?
         .finish()?;
     Ok(df)
 }
 
-fn read_tsv(path: &PathBuf, headers: bool) -> Result<DataFrame, DataError> {
-    let df = CsvReadOptions::default()
-        .with_parse_options(CsvParseOptions::default().with_separator(b'\t'))
+fn read_tsv(path: &PathBuf, headers: bool) -> Result<LazyFrame, DataError> {
+    let df = LazyCsvReader::new(path.to_str().unwrap())
         .with_has_header(headers)
-        .try_into_reader_with_file_path(Some(path.into()))?
+        .with_separator(b'\t')
         .finish()?;
     Ok(df)
 }
 
-fn read_parquet(path: &PathBuf) -> Result<DataFrame, DataError> {
-    let df = ParquetReader::new(File::open(path)?).finish()?;
+fn read_parquet(path: &PathBuf) -> Result<LazyFrame, DataError> {
+    let df = LazyFrame::scan_parquet(path.to_str().unwrap(), Default::default())?;
     Ok(df)
 }
