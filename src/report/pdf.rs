@@ -20,7 +20,7 @@ pub const ITALIC_FONT: PdfFontBuiltin = PdfFontBuiltin::TimesItalic;
 /// Section header font size.
 pub const SECTION_HEADER_FONT_SIZE: f32 = 24.0;
 /// Normal text font size.
-pub const FONT_SIZE: f32 = 16.0;
+pub const FONT_SIZE: f32 = 14.0;
 /// Bottom page margin.
 pub const BOTTOM_MARGIN: f32 = 0.1;
 
@@ -39,9 +39,9 @@ pub struct PageManager<'a> {
     document: PdfDocument<'a>,
     /// The current page in the document.
     current_page: u32,
-    /// The height of the current page.
+    /// The height of the current page in points.
     page_height: f32,
-    /// The width of the current page.
+    /// The width of the current page in points.
     page_width: f32,
     /// The regular font.
     font: PdfFontToken,
@@ -211,18 +211,37 @@ impl<'a> PageManager<'a> {
 
             let section_width = self.get_text_width(&section_name, self.font, FONT_SIZE)?;
             let page_num_width = self.get_text_width(&page_num_text, self.font, FONT_SIZE)?;
-            let start_x = 0.1 * self.page_width + section_width + 10.0;
-            let end_x = 0.9 * self.page_width - page_num_width - 10.0;
+
+            let start_x = 0.1 + section_width + 0.01;
+            let end_x = 0.9 - page_num_width - 0.01;
 
             self.add_dotted_line(start_x, end_x, y_fraction)?;
 
             y_fraction -= line_height_fraction;
         }
 
-        self.add_page_numbers()?;
+        for i in 0..pages_added {
+            let page_num = to_roman_numeral((i + 1).into());
+            let mut page = self
+                .document
+                .pages()
+                .get(start_page as u16 + i as u16)
+                .unwrap();
+            let mut text_object =
+                PdfPageTextObject::new(&self.document, &page_num, self.font, PdfPoints::new(10.0))?;
+            text_object.set_fill_color(PdfColor::new(0, 0, 0, 255))?;
+            text_object.translate(
+                PdfPoints::new(self.page_width * 0.95),
+                PdfPoints::new(self.page_height * 0.05),
+            )?;
+            page.objects_mut().add_text_object(text_object)?;
+        }
+
         for page_number in self.section_page_map.values_mut() {
             *page_number += pages_added as u32;
         }
+        self.section_page_map.insert("Table of Contents".to_owned(), pages_added as u32);
+        self.add_page_numbers()?;
 
         Ok(pages_added as u32)
     }
@@ -368,13 +387,25 @@ impl<'a> PageManager<'a> {
 
     /// Adds the page numbers in the bottom right corner for each page.
     fn add_page_numbers(&mut self) -> Result<(), PdfError> {
-        let total_pages = self.document.pages().len() + 1;
-        for page_index in 1..total_pages {
-            let text = format!("{}", page_index);
+        let total_pages = self.document.pages().len() as u32;
+        let toc_pages = *self.section_page_map.get("Table of Contents").unwrap_or(&0) + 1;
+        let mut current_page = 1;
+        for page_index in toc_pages..total_pages {
+            let text = format!("{}", current_page);
 
-            // TODO : can't use add_text here since I need to add to multiple pages, will have to
-            // do the loop within this function.
-            self.add_text(&text, self.font, 12.0, 0.95, 0.05, None)?;
+            let mut text_object = PdfPageTextObject::new(
+                &self.document,
+                &text,
+                self.font,
+                PdfPoints::new(12.0)
+            )?;
+            text_object.set_fill_color(PdfColor::new(0, 0, 0, 255))?;
+            text_object.translate(PdfPoints::new(self.page_width * 0.95), PdfPoints::new(self.page_height * 0.05))?;
+
+            let mut page = self.document.pages().get(page_index as u16).unwrap();
+            page.objects_mut().add_text_object(text_object)?;
+
+            current_page += 1;
         }
 
         Ok(())
@@ -382,22 +413,22 @@ impl<'a> PageManager<'a> {
 
     /// Adds the dotted lines for the table of contents rows.
     fn add_dotted_line(&mut self, start_x: f32, end_x: f32, y: f32) -> Result<(), PdfError> {
-        let dot_char = ".";
-        let dot_spacing = 4.0;
         let total_width = end_x - start_x;
-        let num_dots = (total_width / dot_spacing).floor() as i32;
+        let mut dotted_line = String::new();
+        let mut current_width = 0.0;
 
-        let dotted_line = dot_char.repeat(num_dots as usize);
+        while current_width < total_width {
+            dotted_line.push_str(".");
+            current_width = self.get_text_width(&dotted_line, self.font, FONT_SIZE)?;
+        }
 
-        let dot_font_size = FONT_SIZE * 0.75;
-
-        self.add_text(&dotted_line, self.font, dot_font_size, start_x / self.page_width, y, None)?;
+        self.add_text(&dotted_line, self.font, FONT_SIZE, start_x, y, None)?;
 
         Ok(())
     }
 
     /// Calculates the width of the section heading for the table of contents. Used to calculate
-    /// how long the dashed line should be.
+    /// how long the dashed line should be. Width's are returned as a fraction of the page width.
     fn get_text_width(
         &self,
         text: &str,
@@ -410,12 +441,12 @@ impl<'a> PageManager<'a> {
         let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
 
         let temp_object = current_page.objects_mut().create_text_object(
-                PdfPoints::new(0.0),
-                PdfPoints::new(0.0),
-                text,
-                pdf_font,
-                PdfPoints::new(font_size),
-            )?;
+            PdfPoints::new(0.0),
+            PdfPoints::new(0.0),
+            text,
+            pdf_font,
+            PdfPoints::new(font_size),
+        )?;
 
         if let Some(text_object) = temp_object.as_text_object() {
             let page_text = current_page.text()?;
@@ -430,6 +461,25 @@ impl<'a> PageManager<'a> {
 
         current_page.objects_mut().remove_object(temp_object)?;
 
-        Ok(total_width)
+        Ok(total_width / self.page_width)
     }
+}
+
+/// Converts a number to a roman numeral.
+fn to_roman_numeral(num: u32) -> String {
+    let symbols = [
+        "M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I",
+    ];
+    let values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+    let mut result = String::new();
+    let mut remaining = num;
+
+    for (&symbol, &value) in symbols.iter().zip(values.iter()) {
+        while remaining >= value {
+            result.push_str(symbol);
+            remaining -= value;
+        }
+    }
+
+    result
 }
