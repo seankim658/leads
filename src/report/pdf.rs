@@ -120,9 +120,27 @@ impl<'a> PageManager<'a> {
         self.add_text(
             &format!("Dataset: {}", data_title),
             self.font,
-            18.0,
+            24.0,
             0.1,
             0.75,
+            None,
+        )?;
+
+        // Add a brief description of the report.
+        self.add_text(
+            "This report provides a comprehensive exploratory analysis of the dataset,",
+            self.font,
+            14.0,
+            0.1,
+            0.65,
+            None,
+        )?;
+        self.add_text(
+            "including statistical summaries, outliers, visualizations, and key insights.",
+            self.font,
+            14.0,
+            0.1,
+            0.62,
             None,
         )?;
 
@@ -133,7 +151,18 @@ impl<'a> PageManager<'a> {
             self.font,
             12.0,
             0.1,
-            0.70,
+            0.2,
+            None,
+        )?;
+
+        // Add crate version.
+        let version = env!("CARGO_PKG_VERSION");
+        self.add_text(
+            &format!("LEADS version: {}", version),
+            self.font,
+            12.0,
+            0.1,
+            0.17,
             None,
         )?;
 
@@ -175,15 +204,22 @@ impl<'a> PageManager<'a> {
                 y_fraction = 0.9;
             }
 
-            let text = format!(
-                "{} ........................... {}",
-                section_name,
-                page_number + pages_added as u32
-            );
-            self.add_text(&text, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+            self.add_text(&section_name, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+
+            let page_num_text = format!("{}", page_number + pages_added as u32);
+            self.add_text(&page_num_text, self.font, FONT_SIZE, 0.9, y_fraction, None)?;
+
+            let section_width = self.get_text_width(&section_name, self.font, FONT_SIZE)?;
+            let page_num_width = self.get_text_width(&page_num_text, self.font, FONT_SIZE)?;
+            let start_x = 0.1 * self.page_width + section_width + 10.0;
+            let end_x = 0.9 * self.page_width - page_num_width - 10.0;
+
+            self.add_dotted_line(start_x, end_x, y_fraction)?;
+
             y_fraction -= line_height_fraction;
         }
 
+        self.add_page_numbers()?;
         for page_number in self.section_page_map.values_mut() {
             *page_number += pages_added as u32;
         }
@@ -305,7 +341,10 @@ impl<'a> PageManager<'a> {
             None,
         )?;
 
-        path.line_to(PdfPoints::new(self.page_width * x2), PdfPoints::new(self.page_height * y2))?;
+        path.line_to(
+            PdfPoints::new(self.page_width * x2),
+            PdfPoints::new(self.page_height * y2),
+        )?;
 
         let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
         current_page.objects_mut().add_path_object(path)?;
@@ -325,5 +364,69 @@ impl<'a> PageManager<'a> {
     /// new page is needed.
     fn need_new_page(&self, y_fraction: f32, content_height_fraction: f32) -> bool {
         y_fraction - content_height_fraction < BOTTOM_MARGIN
+    }
+
+    /// Adds the page numbers in the bottom right corner for each page.
+    fn add_page_numbers(&mut self) -> Result<(), PdfError> {
+        let total_pages = self.document.pages().len() + 1;
+        for page_index in 1..total_pages {
+            let text = format!("{}", page_index);
+
+            self.add_text(&text, self.font, 12.0, 0.95, 0.05, None)?;
+        }
+
+        Ok(())
+    }
+
+    /// Adds the dotted lines for the table of contents rows.
+    fn add_dotted_line(&mut self, start_x: f32, end_x: f32, y: f32) -> Result<(), PdfError> {
+        let dot_width = 1.0;
+        let space_width = 3.0;
+        let total_width = end_x - start_x;
+        let num_dots = (total_width / (dot_width + space_width)).floor() as i32;
+
+        for i in 0..num_dots {
+            let x = start_x * i as f32 * (dot_width + space_width);
+            self.add_line(x / self.page_width, y, (x + dot_width) / self.page_width, y, 0.5)?;
+        }
+
+        Ok(())
+    }
+
+    /// Calculates the width of the section heading for the table of contents. Used to calculate
+    /// how long the dashed line should be.
+    fn get_text_width(
+        &self,
+        text: &str,
+        font: PdfFontToken,
+        font_size: f32,
+    ) -> Result<f32, PdfError> {
+        let mut total_width = 0.0;
+        let pdf_font = self.document.fonts().get(font).unwrap();
+
+        let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
+
+        let temp_object = current_page.objects_mut().create_text_object(
+                PdfPoints::new(0.0),
+                PdfPoints::new(0.0),
+                text,
+                pdf_font,
+                PdfPoints::new(font_size),
+            )?;
+
+        if let Some(text_object) = temp_object.as_text_object() {
+            let page_text = current_page.text()?;
+            let chars = page_text.chars_for_object(text_object)?;
+
+            for char in chars.iter() {
+                if let Ok(bounds) = char.loose_bounds() {
+                    total_width += bounds.width().value;
+                }
+            }
+        }
+
+        current_page.objects_mut().remove_object(temp_object)?;
+
+        Ok(total_width)
     }
 }
