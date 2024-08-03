@@ -372,6 +372,8 @@ impl<'a> PageManager<'a> {
         for page_index in 1..total_pages {
             let text = format!("{}", page_index);
 
+            // TODO : can't use add_text here since I need to add to multiple pages, will have to
+            // do the loop within this function.
             self.add_text(&text, self.font, 12.0, 0.95, 0.05, None)?;
         }
 
@@ -380,15 +382,16 @@ impl<'a> PageManager<'a> {
 
     /// Adds the dotted lines for the table of contents rows.
     fn add_dotted_line(&mut self, start_x: f32, end_x: f32, y: f32) -> Result<(), PdfError> {
-        let dot_width = 1.0;
-        let space_width = 3.0;
+        let dot_char = ".";
+        let dot_spacing = 4.0;
         let total_width = end_x - start_x;
-        let num_dots = (total_width / (dot_width + space_width)).floor() as i32;
+        let num_dots = (total_width / dot_spacing).floor() as i32;
 
-        for i in 0..num_dots {
-            let x = start_x * i as f32 * (dot_width + space_width);
-            self.add_line(x / self.page_width, y, (x + dot_width) / self.page_width, y, 0.5)?;
-        }
+        let dotted_line = dot_char.repeat(num_dots as usize);
+
+        let dot_font_size = FONT_SIZE * 0.75;
+
+        self.add_text(&dotted_line, self.font, dot_font_size, start_x / self.page_width, y, None)?;
 
         Ok(())
     }
