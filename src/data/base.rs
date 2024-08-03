@@ -13,7 +13,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// The error types for the data load module.
+/// The error types for the base data module.
 #[derive(Error, Debug)]
 pub enum DataError {
     /// Occurs when an I/O operation fails.
