@@ -21,7 +21,7 @@ pub enum DataError {
 
     /// Occurs when Polars fails to complete an operation.
     #[error("Polars error: {0}")]
-    Polars(#[from] polars::error::PolarsError),
+    Polars(#[from] PolarsError),
 
     /// Occurs when Polars fails to lazy infer the schema.
     #[error("Polars schema error: {0}")]
