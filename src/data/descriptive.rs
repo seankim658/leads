@@ -6,6 +6,7 @@
 
 use indexmap::IndexMap;
 use polars::{lazy::dsl::*, prelude::*};
+use std::collections::HashMap;
 use thiserror::Error;
 
 /// The error types for the descriptive analysis module.
@@ -23,22 +24,28 @@ pub enum DescriptiveError {
     #[error("Non-existent column: {0}")]
     InvalidCol(String),
 
+    /// Occurs when trying to access and invalid column index
+    #[error("Invalid index: {0}")]
+    InvalidIndex(String),
+
     /// Occurs when data type conversion fails for a column value.
     #[error("Invalid data conversion for column {0}, from {1} to {2}")]
     InvalidConversion(String, String, String),
-
 }
 
 /// Struct to hold the overall descriptive analysis results.
+#[derive(Debug)]
 pub struct DescriptiveAnalysis {
     /// The number of rows in the data.
-    pub n_rows: usize,
+    pub n_rows: u64,
     /// The number of columns in the data.
-    pub n_cols: usize,
+    pub n_cols: u64,
     /// The map of each feature's descriptive analysis results.
     pub column_stats: FeatureStats,
     /// The column map for the FeatureStats struct.
     pub column_map: IndexMap<String, usize>,
+    /// Offset indices for each feature.
+    pub feature_indices: HashMap<String, usize>,
 }
 
 impl DescriptiveAnalysis {
@@ -49,7 +56,7 @@ impl DescriptiveAnalysis {
     /// - `lazy_df`: Reference to the LazyFrame.
     /// - `schema`: Reference to the lazy frame's schema.
     pub fn new(lazy_df: &LazyFrame, schema: &Schema) -> Result<Self, DescriptiveError> {
-        let n_cols = schema.len();
+        let n_cols = schema.len() as u64;
         let numeric_columns: Vec<String> = schema
             .iter()
             .filter(|(_, dtype)| dtype.is_numeric())
@@ -57,38 +64,47 @@ impl DescriptiveAnalysis {
             .collect();
 
         let stats_df = lazy_df
+            .clone()
             .select(
                 numeric_columns
                     .iter()
-                    .map(|col_name| {
+                    .flat_map(|col_name| {
                         vec![
-                            lit(col_name.to_owned()).alias("column_name"),
-                            col(col_name).min().alias("min"),
-                            col(col_name).max().alias("max"),
-                            col(col_name).mean().alias("mean"),
-                            col(col_name).median().alias("median"),
-                            col(col_name).std(1).alias("std_dev"),
+                            lit(col_name.to_owned()).alias(&format!("{}", col_name)),
+                            col(col_name).min().alias(&format!("{}_min", col_name)),
+                            col(col_name).max().alias(&format!("{}_max", col_name)),
+                            col(col_name).mean().alias(&format!("{}_mean", col_name)),
+                            col(col_name)
+                                .median()
+                                .alias(&format!("{}_median", col_name)),
+                            col(col_name).std(1).alias(&format!("{}_std_dev", col_name)),
                             col(col_name)
                                 .quantile(lit(0.25), QuantileInterpolOptions::Linear)
-                                .alias("q1"),
+                                .alias(&format!("{}_q1", col_name)),
                             col(col_name)
                                 .quantile(lit(0.75), QuantileInterpolOptions::Linear)
-                                .alias("q3"),
+                                .alias(&format!("{}_q3", col_name)),
                             (col(col_name).quantile(lit(0.75), QuantileInterpolOptions::Linear)
                                 - col(col_name)
                                     .quantile(lit(0.75), QuantileInterpolOptions::Linear))
-                            .alias("iqr"),
-                            col(col_name).skew(true).alias("skew_bias"),
-                            col(col_name).skew(false).alias("skew_raw"),
-                            col(col_name).kurtosis(true, false).alias("kurtosis"),
-                            col(&col_name).count().alias("count"),
+                            .alias(&format!("{}_iqr", col_name)),
+                            col(col_name)
+                                .skew(true)
+                                .alias(&format!("{}_skew_bias", col_name)),
+                            col(col_name)
+                                .skew(false)
+                                .alias(&format!("{}_skew_raw", col_name)),
+                            col(col_name)
+                                .kurtosis(true, false)
+                                .alias(&format!("{}_kurtosis", col_name)),
+                            col(&col_name).count().alias(&format!("{}_count", col_name)),
                         ]
                     })
-                    .collect(),
+                    .collect::<Vec<Expr>>(),
             )
             .collect()?;
 
-        let column_stats = FeatureStats::new(stats_df)?;
+        let feature_stats = FeatureStats::new(stats_df)?;
 
         let column_map: IndexMap<String, usize> = IndexMap::from([
             ("column_name".to_owned(), 0),
@@ -106,61 +122,86 @@ impl DescriptiveAnalysis {
             ("count".to_owned(), 12),
         ]);
 
+        let feature_indices: HashMap<String, usize> = numeric_columns
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (name.clone(), index * column_map.len()))
+            .collect();
+
+        let n_rows = feature_stats.get_count(
+            numeric_columns
+                .get(0)
+                .ok_or_else(|| DescriptiveError::InvalidIndex(format!("0")))?,
+            &feature_indices,
+            &column_map,
+        )?;
+
         Ok(Self {
             n_rows,
             n_cols,
-            column_stats,
+            column_stats: feature_stats,
             column_map,
+            feature_indices,
         })
     }
 }
 
 /// Struct to hold an individual feature's (column) descriptive analysis results.
+#[derive(Debug)]
 pub struct FeatureStats(DataFrame);
 
 impl FeatureStats {
-    /// Defines the Feature stats schema.
-    pub fn schema() -> Schema {
-        Schema::from_iter(vec![
-            Field::new("column_name", DataType::String),
-            Field::new("min", DataType::Float64),
-            Field::new("max", DataType::Float64),
-            Field::new("mean", DataType::Float64),
-            Field::new("median", DataType::Float64),
-            Field::new("std_dev", DataType::Float64),
-            Field::new("q1", DataType::Float64),
-            Field::new("q3", DataType::Float64),
-            Field::new("iqr", DataType::Float64),
-            Field::new("skewness_bias", DataType::Float64),
-            Field::new("skewness_raw", DataType::Float64),
-            Field::new("kurtosis", DataType::Float64),
-            Field::new("count", DataType::UInt64),
-        ])
-    }
-
     /// Constructor for the FeatureStats struct.
     ///
     /// ### Parameters
     ///
     /// - `df`: Dataframe to convert to a FeatureStats struct.
     pub fn new(df: DataFrame) -> Result<Self, DescriptiveError> {
-        if df.schema() != Self::schema() {
-            return Err(DescriptiveError::Schema());
-        }
-
         Ok(Self(df))
     }
 
-    /// Gets the count value from the first row.
-    ///
-    /// ### Returns
-    ///
-    /// - `Result<u64, DescriptiveError>`: The extracted count value.
-    pub fn get_count(&self, column_map: IndexMap<String, usize>) -> Result<u64, DescriptiveError> {
+    /// Gets the row count as u64.
+    pub fn get_count(
+        &self,
+        feature: &str,
+        feature_indices: &HashMap<String, usize>,
+        column_map: &IndexMap<String, usize>,
+    ) -> Result<u64, DescriptiveError> {
+        let value = self.get_statistic(feature, "count", feature_indices, column_map)?;
+        match value {
+            AnyValue::UInt64(count) => Ok(count),
+            AnyValue::UInt32(count) => Ok(count as u64),
+            _ => Err(DescriptiveError::InvalidConversion(
+                "count".to_owned(),
+                value.dtype().to_string(),
+                "u64".to_owned(),
+            )),
+        }
+    }
+
+    fn get_statistic(
+        &self,
+        feature: &str,
+        statistic: &str,
+        feature_indices: &HashMap<String, usize>,
+        column_map: &IndexMap<String, usize>,
+    ) -> Result<AnyValue, DescriptiveError> {
+        let feature_index = feature_indices
+            .get(feature)
+            .ok_or_else(|| DescriptiveError::InvalidCol(feature.to_owned()))?;
+        let statistic_offset = column_map
+            .get(statistic)
+            .ok_or_else(|| DescriptiveError::InvalidCol(feature.to_owned()))?;
+        let column_index = feature_index + statistic_offset;
+
         let value = self
             .0
-            .column("count")
-            .map_err(|_| DescriptiveError::InvalidCol("count".to_owned()))?
-            .get(column_map.get("count").unwrap().to_owned())?;
+            .get(0)
+            .ok_or_else(|| DescriptiveError::InvalidCol("No data".to_owned()))?
+            .get(column_index)
+            .ok_or_else(|| DescriptiveError::InvalidIndex(format!("{}", column_index)))?
+            .to_owned();
+
+        Ok(value)
     }
 }

@@ -6,6 +6,7 @@
 //! ```
 //! ```
 
+use crate::{data::descriptive::DescriptiveAnalysis, LeadsError};
 use indexmap::IndexMap;
 use polars::prelude::*;
 use std::ffi::OsStr;
@@ -52,6 +53,8 @@ pub struct DataInfo {
     pub column_types: IndexMap<String, DataType>,
     /// The polars dataframe of the data.
     pub data: LazyFrame,
+    /// The descriptive analysis data.
+    pub descriptive_analysis: DescriptiveAnalysis,
 }
 
 impl DataInfo {
@@ -63,9 +66,9 @@ impl DataInfo {
     ///
     /// ### Returns
     ///
-    /// - `Result<Self, DataError>`: The DataInfo struct or a propagated Dataerror.
+    /// - `Result<Self, DataError>`: The DataInfo struct or a propagated LeadsError.
     ///
-    pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, DataError> {
+    pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, LeadsError> {
         let headers = headers.unwrap_or(true);
         let mut lazy_df = read_file(path, headers)?;
 
@@ -90,14 +93,17 @@ impl DataInfo {
         let mut seen_columns = std::collections::HashSet::new();
         for column_name in column_types.keys() {
             if !seen_columns.insert(column_name) {
-                return Err(DataError::DuplicateHeader(column_name.clone()));
+                Err(DataError::DuplicateHeader(column_name.clone()))?
             }
         }
+
+        let descriptive_analysis = DescriptiveAnalysis::new(&lazy_df, &schema)?;
 
         Ok(DataInfo {
             data_title,
             column_types,
             data: lazy_df,
+            descriptive_analysis,
         })
     }
 }
