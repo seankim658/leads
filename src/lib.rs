@@ -27,6 +27,7 @@ pub mod data {
 
 pub mod report {
     pub mod pdf;
+    pub mod glossary;
 }
 
 pub mod spinner;

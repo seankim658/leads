@@ -10,6 +10,8 @@ use polars::datatypes::DataType;
 use std::path::PathBuf;
 use thiserror::Error;
 
+use super::glossary::Glossary;
+
 /// The default paper size.
 pub const PAPER_SIZE: PdfPagePaperStandardSize = PdfPagePaperStandardSize::A4;
 /// The default font.
@@ -26,6 +28,8 @@ pub const FEATURE_HEADER_FONT_SIZE: f32 = 18.0;
 pub const FONT_SIZE: f32 = 14.0;
 /// Bottom page margin.
 pub const BOTTOM_MARGIN: f32 = 0.1;
+/// Padding between normal lines of text.
+pub const LINE_HEIGHT_PADDING: f32 = 0.005;
 
 /// The error types for the pdf modules.
 #[derive(Error, Debug)]
@@ -92,6 +96,7 @@ impl<'a> PageManager<'a> {
         self.create_title_page(&data_info.data_title)?;
         self.create_data_types_page(&data_info.column_types)?;
         self.create_descriptive_analysis_page(&data_info.descriptive_analysis)?;
+        self.create_glossary_page()?;
         self.create_table_of_contents()?;
         Ok(())
     }
@@ -188,7 +193,7 @@ impl<'a> PageManager<'a> {
         )?;
 
         let mut y_fraction = 0.85;
-        let line_height_fraction = FONT_SIZE / self.page_height;
+        let line_height_fraction = FONT_SIZE / self.page_height + LINE_HEIGHT_PADDING;
 
         let sections: Vec<(String, u32)> = self
             .section_page_map
@@ -273,7 +278,7 @@ impl<'a> PageManager<'a> {
         )?;
 
         let mut y_fraction = 0.85;
-        let line_height_fraction = FONT_SIZE / self.page_height;
+        let line_height_fraction = FONT_SIZE / self.page_height + LINE_HEIGHT_PADDING;
 
         for (column_name, data_type) in column_types {
             if self.need_new_page(y_fraction, line_height_fraction) {
@@ -316,7 +321,7 @@ impl<'a> PageManager<'a> {
         )?;
 
         let mut y_fraction = 0.85;
-        let line_height_fraction = FONT_SIZE / self.page_height;
+        let line_height_fraction = FONT_SIZE / self.page_height + LINE_HEIGHT_PADDING;
         let feature_line_height_fraction = FEATURE_HEADER_FONT_SIZE / self.page_height;
 
         let analysis_values = descriptive_analysis.column_stats.get_analysis_values(
@@ -343,7 +348,16 @@ impl<'a> PageManager<'a> {
                 y_fraction,
                 None,
             )?;
-            y_fraction -= 1.5 * feature_line_height_fraction;
+            y_fraction -= feature_line_height_fraction;
+
+            self.add_line(
+                0.1,
+                y_fraction + LINE_HEIGHT_PADDING,
+                0.9,
+                y_fraction + LINE_HEIGHT_PADDING,
+                0.5,
+            )?;
+            y_fraction -= line_height_fraction;
 
             // Format metrics in two columns.
             let left_column = 0.15;
@@ -355,20 +369,32 @@ impl<'a> PageManager<'a> {
                     continue;
                 }
 
-                let text = format!("{}: {}", stat_name, stat_value);
                 let x_position = if counter % 2 == 0 {
                     left_column
                 } else {
                     right_column
                 };
-                self.add_text(&text, self.font, FONT_SIZE, x_position, y_fraction, None)?;
+
+                self.add_text(
+                    &format!("{}:", stat_name),
+                    self.bold_font,
+                    FONT_SIZE,
+                    x_position,
+                    y_fraction,
+                    None,
+                )?;
+
+                let value_x = x_position + 0.2;
+                self.add_text(&stat_value, self.font, FONT_SIZE, value_x, y_fraction, None)?;
 
                 if counter % 2 == 1 {
                     y_fraction -= line_height_fraction;
                 }
                 counter += 1;
 
-                if counter % 2 == 0 && self.need_new_page(y_fraction - line_height_fraction, line_height_fraction) {
+                if counter % 2 == 0
+                    && self.need_new_page(y_fraction - line_height_fraction, line_height_fraction)
+                {
                     self.new_page()?;
                     y_fraction = 0.9;
                 }
@@ -378,7 +404,37 @@ impl<'a> PageManager<'a> {
                 y_fraction -= line_height_fraction;
             }
 
-            y_fraction -= 2.0 * line_height_fraction;
+            y_fraction -= 1.5 * line_height_fraction;
+        }
+
+        Ok(())
+    }
+
+    /// Creates the term glossary pages.
+    // TODO : This works for now but need to create a text wrap/paragaph like helper function to
+    // handle long definitions.
+    pub fn create_glossary_page(&mut self) -> Result<(), PdfError> {
+        self.new_page()?;
+        self.section_page_map.insert("Glossary".to_owned(), self.current_page - 1);
+
+        self.add_text("Glossary", self.bold_font, SECTION_HEADER_FONT_SIZE, 0.1, 0.9, None)?;
+
+        let mut y_fraction = 0.85;
+        let line_height_fraction = 10.0 / self.page_height + LINE_HEIGHT_PADDING;
+
+        let glossary = Glossary::new();
+
+        for (term, definition) in glossary.terms.iter().zip(glossary.definitions.iter()) {
+            if self.need_new_page(y_fraction, 2.0 * line_height_fraction) {
+                self.new_page()?;
+                y_fraction = 0.9;
+            }
+
+            self.add_text(term, self.bold_font, 10.0, 0.1, y_fraction, None)?;
+            y_fraction -= line_height_fraction;
+
+            self.add_text(definition, self.font, 10.0, 0.125, y_fraction, None)?;
+            y_fraction -= 1.5 * line_height_fraction;
         }
 
         Ok(())
