@@ -1,6 +1,6 @@
 # LEADS
 
-LEADS is a **L**ightweight **E**xploratory **A**nalysis **D**ata **S**ummarizer.
+LEADS is a **L**azy **E**xploratory **A**nalysis **D**ata **S**ummarizer.
 
 Writing the same boilerplate exploratory analysis code in a Jupyter notebook or Excel spreadsheet for each new dataset can be tedious. This tool automates the generation of a consistent, comprehensive, and human readable exploratory analysis report that allows you to immediately become familiar with a dataset. The generated PDF report contains the below features.
 
