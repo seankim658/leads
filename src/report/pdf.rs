@@ -3,6 +3,7 @@
 //! Handles the base implementation of generating a comprehensive PDF report with the exploratory
 //! analysis findings.
 
+use crate::prelude::{DataInfo, DescriptiveAnalysis, LeadsError};
 use indexmap::IndexMap;
 use pdfium_render::prelude::*;
 use polars::datatypes::DataType;
@@ -19,6 +20,8 @@ pub const BOLD_FONT: PdfFontBuiltin = PdfFontBuiltin::TimesBold;
 pub const ITALIC_FONT: PdfFontBuiltin = PdfFontBuiltin::TimesItalic;
 /// Section header font size.
 pub const SECTION_HEADER_FONT_SIZE: f32 = 24.0;
+/// Sub-header for feature names.
+pub const FEATURE_HEADER_FONT_SIZE: f32 = 18.0;
 /// Normal text font size.
 pub const FONT_SIZE: f32 = 14.0;
 /// Bottom page margin.
@@ -84,15 +87,11 @@ impl<'a> PageManager<'a> {
     ///
     /// ### Parameters
     ///
-    /// - `data_title`: Title of the dataset.
-    /// - `column_types`: Index map of the columns and their corresponding data types.
-    pub fn generate_report(
-        &mut self,
-        data_title: &str,
-        column_types: &IndexMap<String, DataType>,
-    ) -> Result<(), PdfError> {
-        self.create_title_page(data_title)?;
-        self.create_data_types_page(column_types)?;
+    /// - `data_info`: The dataset information.
+    pub fn generate_report(&mut self, data_info: &DataInfo) -> Result<(), LeadsError> {
+        self.create_title_page(&data_info.data_title)?;
+        self.create_data_types_page(&data_info.column_types)?;
+        self.create_descriptive_analysis_page(&data_info.descriptive_analysis)?;
         self.create_table_of_contents()?;
         Ok(())
     }
@@ -106,7 +105,7 @@ impl<'a> PageManager<'a> {
     /// ### Returns
     ///
     /// - `Result<(), PdfError>`: Unit type or a propagated PdfError.
-    pub fn create_title_page(&mut self, data_title: &str) -> Result<(), PdfError> {
+    pub fn create_title_page(&mut self, data_title: &str) -> Result<(), LeadsError> {
         self.new_page()?;
 
         // Add main document title.
@@ -240,7 +239,8 @@ impl<'a> PageManager<'a> {
         for page_number in self.section_page_map.values_mut() {
             *page_number += pages_added as u32;
         }
-        self.section_page_map.insert("Table of Contents".to_owned(), pages_added as u32);
+        self.section_page_map
+            .insert("Table of Contents".to_owned(), pages_added as u32);
         self.add_page_numbers()?;
 
         Ok(pages_added as u32)
@@ -285,6 +285,100 @@ impl<'a> PageManager<'a> {
             self.add_text(&text, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
 
             y_fraction -= line_height_fraction;
+        }
+
+        Ok(())
+    }
+
+    /// Creates the report pages with the results of the basic descriptie analysis.
+    ///
+    /// ### Parameters
+    ///
+    /// - `descriptive_analysis`: The descriptive analysis results.
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<() PdfError>`: Unit type or the propogated PdfError.
+    pub fn create_descriptive_analysis_page(
+        &mut self,
+        descriptive_analysis: &DescriptiveAnalysis,
+    ) -> Result<(), LeadsError> {
+        self.new_page()?;
+        self.section_page_map
+            .insert("Descriptive Analysis".to_owned(), self.current_page - 1);
+        self.add_text(
+            "Descriptive Analysis",
+            self.bold_font,
+            SECTION_HEADER_FONT_SIZE,
+            0.1,
+            0.9,
+            None,
+        )?;
+
+        let mut y_fraction = 0.85;
+        let line_height_fraction = FONT_SIZE / self.page_height;
+        let feature_line_height_fraction = FEATURE_HEADER_FONT_SIZE / self.page_height;
+
+        let analysis_values = descriptive_analysis.column_stats.get_analysis_values(
+            &descriptive_analysis.feature_indices,
+            &descriptive_analysis.column_map,
+        )?;
+
+        for feature_stats in analysis_values {
+            if self.need_new_page(
+                y_fraction,
+                feature_line_height_fraction + 7.0 * line_height_fraction,
+            ) {
+                self.new_page()?;
+                y_fraction = 0.9;
+            }
+
+            // Add feature sub-header.
+            let feature_name = &feature_stats["column_name"];
+            self.add_text(
+                feature_name,
+                self.bold_font,
+                FEATURE_HEADER_FONT_SIZE,
+                0.1,
+                y_fraction,
+                None,
+            )?;
+            y_fraction -= 1.5 * feature_line_height_fraction;
+
+            // Format metrics in two columns.
+            let left_column = 0.15;
+            let right_column = 0.55;
+            let mut counter = 0;
+
+            for (stat_name, stat_value) in feature_stats.iter() {
+                if stat_name == "column_name" {
+                    continue;
+                }
+
+                let text = format!("{}: {}", stat_name, stat_value);
+                let x_position = if counter % 2 == 0 {
+                    left_column
+                } else {
+                    right_column
+                };
+                self.add_text(&text, self.font, FONT_SIZE, x_position, y_fraction, None)?;
+
+                if counter % 2 == 1 {
+                    y_fraction -= line_height_fraction;
+                }
+                counter += 1;
+
+                if counter % 2 == 0 && self.need_new_page(y_fraction - line_height_fraction, line_height_fraction) {
+                    self.new_page()?;
+                    y_fraction = 0.9;
+                }
+            }
+
+            if counter % 2 == 1 {
+                y_fraction -= line_height_fraction;
+            }
+
+            y_fraction -= 2.0 * line_height_fraction;
         }
 
         Ok(())
@@ -393,14 +487,13 @@ impl<'a> PageManager<'a> {
         for page_index in toc_pages..total_pages {
             let text = format!("{}", current_page);
 
-            let mut text_object = PdfPageTextObject::new(
-                &self.document,
-                &text,
-                self.font,
-                PdfPoints::new(12.0)
-            )?;
+            let mut text_object =
+                PdfPageTextObject::new(&self.document, &text, self.font, PdfPoints::new(12.0))?;
             text_object.set_fill_color(PdfColor::new(0, 0, 0, 255))?;
-            text_object.translate(PdfPoints::new(self.page_width * 0.95), PdfPoints::new(self.page_height * 0.05))?;
+            text_object.translate(
+                PdfPoints::new(self.page_width * 0.95),
+                PdfPoints::new(self.page_height * 0.05),
+            )?;
 
             let mut page = self.document.pages().get(page_index as u16).unwrap();
             page.objects_mut().add_text_object(text_object)?;

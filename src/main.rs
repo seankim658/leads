@@ -53,7 +53,7 @@ fn main() -> LeadsResult<()> {
 
     // Generate the report.
     handle_operation(
-        || page_manager.generate_report(&data.data_title, &data.column_types),
+        || page_manager.generate_report(&data),
         "Finished report generation.",
         "Failed to generate report.",
         &spinner,

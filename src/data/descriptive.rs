@@ -6,7 +6,6 @@
 
 use indexmap::IndexMap;
 use polars::{lazy::dsl::*, prelude::*};
-use std::collections::HashMap;
 use thiserror::Error;
 
 /// The error types for the descriptive analysis module.
@@ -17,8 +16,8 @@ pub enum DescriptiveError {
     Polars(#[from] PolarsError),
 
     /// Occurs during schema validation when creating the descriptive analysis FeatureStats struct.
-    #[error("FeatureStats schema error")]
-    Schema(),
+    #[error("FeatureStats schema error: {0}")]
+    Schema(String),
 
     /// Occurs when trying to interact with a column that doesn't exist.
     #[error("Non-existent column: {0}")]
@@ -42,10 +41,10 @@ pub struct DescriptiveAnalysis {
     pub n_cols: u64,
     /// The map of each feature's descriptive analysis results.
     pub column_stats: FeatureStats,
-    /// The column map for the FeatureStats struct.
+    /// The column offset map.
     pub column_map: IndexMap<String, usize>,
     /// Offset indices for each feature.
-    pub feature_indices: HashMap<String, usize>,
+    pub feature_indices: IndexMap<String, usize>,
 }
 
 impl DescriptiveAnalysis {
@@ -122,7 +121,7 @@ impl DescriptiveAnalysis {
             ("count".to_owned(), 12),
         ]);
 
-        let feature_indices: HashMap<String, usize> = numeric_columns
+        let feature_indices: IndexMap<String, usize> = numeric_columns
             .iter()
             .enumerate()
             .map(|(index, name)| (name.clone(), index * column_map.len()))
@@ -160,11 +159,54 @@ impl FeatureStats {
         Ok(Self(df))
     }
 
+    /// Gets a vector of all the descriptive analysis values for printing.
+    ///
+    /// ### Parameters
+    ///
+    /// - `feature`: The feature to get the descriptive analysis data for.
+    /// - `feature_indices`: The map of offsets for each feature.
+    /// - `column_map`: The map of offsets for each descriptive analysis metric.
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<IndexMap<String, String>, DescriptiveError>`: The IndexMap containing each metric
+    /// name as a key and the corresponding metric value as a string or the propagated DescriptiveError.
+    pub fn get_analysis_values(
+        &self,
+        feature_indices: &IndexMap<String, usize>,
+        column_map: &IndexMap<String, usize>,
+    ) -> Result<Vec<IndexMap<String, String>>, DescriptiveError> {
+        let mut result = Vec::with_capacity(feature_indices.len());
+
+        let row = self
+            .0
+            .get(0)
+            .ok_or_else(|| DescriptiveError::Schema("No data".to_owned()))?;
+
+        for (_, feature_index) in feature_indices {
+            let mut feature_stats = IndexMap::with_capacity(column_map.len());
+
+            for (statistic, stat_offset) in column_map {
+                let column_index = feature_index + stat_offset;
+                let value = row.get(column_index).ok_or_else(|| {
+                    DescriptiveError::InvalidIndex(format!(
+                        "attempted to index FeatureStats Vec with index {}",
+                        column_index.to_string()
+                    ))
+                })?;
+                feature_stats.insert(statistic.to_owned(), value.to_string());
+            }
+            result.push(feature_stats);
+        }
+
+        Ok(result)
+    }
+
     /// Gets the row count as u64.
     pub fn get_count(
         &self,
         feature: &str,
-        feature_indices: &HashMap<String, usize>,
+        feature_indices: &IndexMap<String, usize>,
         column_map: &IndexMap<String, usize>,
     ) -> Result<u64, DescriptiveError> {
         let value = self.get_statistic(feature, "count", feature_indices, column_map)?;
@@ -179,11 +221,12 @@ impl FeatureStats {
         }
     }
 
+    /// Get a single statistic for a feature.
     fn get_statistic(
         &self,
         feature: &str,
         statistic: &str,
-        feature_indices: &HashMap<String, usize>,
+        feature_indices: &IndexMap<String, usize>,
         column_map: &IndexMap<String, usize>,
     ) -> Result<AnyValue, DescriptiveError> {
         let feature_index = feature_indices
@@ -194,6 +237,7 @@ impl FeatureStats {
             .ok_or_else(|| DescriptiveError::InvalidCol(feature.to_owned()))?;
         let column_index = feature_index + statistic_offset;
 
+        // TODO : there should be a better way of doing that avoids a .get() call.
         let value = self
             .0
             .get(0)
