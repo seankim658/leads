@@ -11,5 +11,5 @@ colored = "2.1.0"
 indexmap = "2.3.0"
 indicatif = "0.17.8"
 pdfium-render = "0.8.22"
-polars = { version = "0.41.3", features = ["lazy", "parquet", "moment"] }
+polars = { version = "0.41.3", features = ["lazy", "parquet", "moment", "dtype-array"] }
 thiserror = "1.0.63"
