@@ -1,5 +1,7 @@
 //!
 
+use polars::datatypes::DataType;
+
 pub struct Glossary {
     pub terms: [&'static str; 15],
     pub definitions: [&'static str; 15],
@@ -49,3 +51,28 @@ pub const DEFINITIONS: [&'static str; 15] = [
     "Skewness calculated without bias correction. Skewness is a metric for asymmetry or distortion, measuring the deviation of a given distribution of a random variable from a normal distribution.", // skewness_raw
     "A string, or text value.", // str
 ];
+
+pub fn get_data_type_category(data_type: &DataType) -> String {
+    match data_type {
+        DataType::Boolean => "Boolean".to_owned(),
+        DataType::UInt8 => "Numeric".to_owned(),
+        DataType::UInt16 => "Numeric".to_owned(),
+        DataType::UInt32 => "Numeric".to_owned(),
+        DataType::UInt64 => "Numeric".to_owned(),
+        DataType::Int8 => "Numeric".to_owned(),
+        DataType::Int16 => "Numeric".to_owned(),
+        DataType::Int32 => "Numeric".to_owned(),
+        DataType::Int64 => "Numeric".to_owned(),
+        DataType::Float32 => "Numeric".to_owned(),
+        DataType::Float64 => "Numeric".to_owned(),
+        DataType::String => "Text".to_owned(),
+        DataType::Binary => "Binary".to_owned(),
+        DataType::Datetime(_, _) => "Date Time".to_owned(),
+        DataType::Date => "Date".to_owned(),
+        DataType::Time => "Time".to_owned(),
+        DataType::Null => "Null".to_owned(),
+        DataType::Array(_, _) => "Array".to_owned(),
+        DataType::List(_) => "List".to_owned(),
+        _ => "Other or unknown".to_owned(),
+    }
+}

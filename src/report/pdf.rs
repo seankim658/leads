@@ -10,7 +10,7 @@ use polars::datatypes::DataType;
 use std::path::PathBuf;
 use thiserror::Error;
 
-use super::glossary::Glossary;
+use super::glossary::{get_data_type_category, Glossary};
 
 /// The default paper size.
 pub const PAPER_SIZE: PdfPagePaperStandardSize = PdfPagePaperStandardSize::A4;
@@ -277,19 +277,84 @@ impl<'a> PageManager<'a> {
             None,
         )?;
 
-        let mut y_fraction = 0.85;
-        let line_height_fraction = FONT_SIZE / self.page_height + LINE_HEIGHT_PADDING;
+        let y_start = 0.85;
+        let column1_x = 0.1;
+        let column2_x = 0.4;
+        let column3_x = 0.7;
+        let line_height = FONT_SIZE / self.page_height + 2.0 * LINE_HEIGHT_PADDING;
+
+        self.add_text(
+            "Feature",
+            self.bold_font,
+            FONT_SIZE,
+            column1_x,
+            y_start,
+            None,
+        )?;
+        self.add_text("Data Type", self.bold_font, FONT_SIZE, column2_x, y_start, None)?;
+        self.add_text("Category", self.bold_font, FONT_SIZE, column3_x, y_start, None)?;
+
+        self.add_line(
+            column1_x,
+            y_start - 0.5 * line_height,
+            0.9,
+            y_start - 0.5 * line_height,
+            1.0,
+        )?;
+
+        let mut y_position = y_start - 2.0 * line_height;
+        let mut row_count = 0;
 
         for (column_name, data_type) in column_types {
-            if self.need_new_page(y_fraction, line_height_fraction) {
+            if self.need_new_page(y_position, 3.0 * line_height) {
                 self.new_page()?;
-                y_fraction = 0.9;
+                y_position = 0.9;
             }
 
-            let text = format!("{}: {}", column_name, data_type);
-            self.add_text(&text, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+            if row_count % 2 == 0 {
+                self.add_rectangle(
+                    column1_x,
+                    y_position + line_height,
+                    0.9,
+                    y_position - line_height,
+                    PdfColor::new(240, 240, 240, 255),
+                )?;
+            }
 
-            y_fraction -= line_height_fraction;
+            self.add_text(
+                column_name,
+                self.font,
+                FONT_SIZE,
+                column1_x + 0.01,
+                y_position,
+                None,
+            )?;
+            self.add_text(
+                &data_type.to_string(),
+                self.font,
+                FONT_SIZE,
+                column2_x,
+                y_position,
+                None,
+            )?;
+
+            let description = get_data_type_category(data_type);
+            let wrapped_description =
+                self.wrap_text(&description, column3_x, 0.9, self.font, FONT_SIZE);
+
+            for (i, line) in wrapped_description.iter().enumerate() {
+                self.add_text(
+                    line,
+                    self.font,
+                    FONT_SIZE,
+                    column3_x,
+                    y_position - i as f32 * line_height,
+                    None,
+                )?;
+            }
+
+            y_position -= (wrapped_description.len() as f32 + 1.0) * line_height;
+            row_count += 1;
         }
 
         Ok(())
@@ -434,7 +499,10 @@ impl<'a> PageManager<'a> {
         let definition_offset = 0.15;
 
         for (term, definition) in glossary.terms.iter().zip(glossary.definitions.iter()) {
-            if self.need_new_page(y_fraction, term_line_height_fraction + definition_line_height_fraction) {
+            if self.need_new_page(
+                y_fraction,
+                term_line_height_fraction + definition_line_height_fraction,
+            ) {
                 self.new_page()?;
                 y_fraction = 0.9;
             }
@@ -444,7 +512,8 @@ impl<'a> PageManager<'a> {
 
             // Set max width for glossary definitions as 70% of the page.
             let max_width = 0.9;
-            let wrapped_lines = self.wrap_text(definition, definition_offset, max_width, self.font, 10.0);
+            let wrapped_lines =
+                self.wrap_text(definition, definition_offset, max_width, self.font, 10.0);
 
             for line in wrapped_lines {
                 if self.need_new_page(y_fraction, definition_line_height_fraction) {
@@ -635,7 +704,14 @@ impl<'a> PageManager<'a> {
     }
 
     /// Wrap text lines to prevent page overflows.
-    fn wrap_text(&self, text: &str, offset: f32, max_width: f32, font: PdfFontToken, font_size: f32) -> Vec<String> {
+    fn wrap_text(
+        &self,
+        text: &str,
+        offset: f32,
+        max_width: f32,
+        font: PdfFontToken,
+        font_size: f32,
+    ) -> Vec<String> {
         let mut lines = Vec::new();
         let mut current_line = String::new();
         let words = text.split_whitespace();
@@ -663,6 +739,43 @@ impl<'a> PageManager<'a> {
         }
 
         lines
+    }
+
+    // Helper function to add a filled rectangle
+    fn add_rectangle(
+        &mut self,
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        color: PdfColor,
+    ) -> Result<(), PdfError> {
+        let mut path = PdfPagePathObject::new(
+            &self.document,
+            PdfPoints::new(self.page_width * x1),
+            PdfPoints::new(self.page_height * y1),
+            Some(color),
+            None,
+            Some(color),
+        )?;
+
+        path.line_to(
+            PdfPoints::new(self.page_width * x2),
+            PdfPoints::new(self.page_height * y1),
+        )?;
+        path.line_to(
+            PdfPoints::new(self.page_width * x2),
+            PdfPoints::new(self.page_height * y2),
+        )?;
+        path.line_to(
+            PdfPoints::new(self.page_width * x1),
+            PdfPoints::new(self.page_height * y2),
+        )?;
+        path.close_path()?;
+
+        let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
+        current_page.objects_mut().add_path_object(path)?;
+        Ok(())
     }
 }
 
