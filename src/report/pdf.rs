@@ -411,30 +411,51 @@ impl<'a> PageManager<'a> {
     }
 
     /// Creates the term glossary pages.
-    // TODO : This works for now but need to create a text wrap/paragaph like helper function to
-    // handle long definitions.
     pub fn create_glossary_page(&mut self) -> Result<(), PdfError> {
         self.new_page()?;
-        self.section_page_map.insert("Glossary".to_owned(), self.current_page - 1);
+        self.section_page_map
+            .insert("Glossary".to_owned(), self.current_page - 1);
 
-        self.add_text("Glossary", self.bold_font, SECTION_HEADER_FONT_SIZE, 0.1, 0.9, None)?;
+        self.add_text(
+            "Glossary",
+            self.bold_font,
+            SECTION_HEADER_FONT_SIZE,
+            0.1,
+            0.9,
+            None,
+        )?;
 
         let mut y_fraction = 0.85;
-        let line_height_fraction = 10.0 / self.page_height + LINE_HEIGHT_PADDING;
+        let term_line_height_fraction = 12.0 / self.page_height + LINE_HEIGHT_PADDING;
+        let definition_line_height_fraction = 10.0 / self.page_height + LINE_HEIGHT_PADDING;
 
         let glossary = Glossary::new();
+        let term_offset = 0.1;
+        let definition_offset = 0.15;
 
         for (term, definition) in glossary.terms.iter().zip(glossary.definitions.iter()) {
-            if self.need_new_page(y_fraction, 2.0 * line_height_fraction) {
+            if self.need_new_page(y_fraction, term_line_height_fraction + definition_line_height_fraction) {
                 self.new_page()?;
                 y_fraction = 0.9;
             }
 
-            self.add_text(term, self.bold_font, 10.0, 0.1, y_fraction, None)?;
-            y_fraction -= line_height_fraction;
+            self.add_text(term, self.bold_font, 12.0, term_offset, y_fraction, None)?;
+            y_fraction -= term_line_height_fraction;
 
-            self.add_text(definition, self.font, 10.0, 0.125, y_fraction, None)?;
-            y_fraction -= 1.5 * line_height_fraction;
+            // Set max width for glossary definitions as 70% of the page.
+            let max_width = 0.9;
+            let wrapped_lines = self.wrap_text(definition, definition_offset, max_width, self.font, 10.0);
+
+            for line in wrapped_lines {
+                if self.need_new_page(y_fraction, definition_line_height_fraction) {
+                    self.new_page()?;
+                    y_fraction = 0.9;
+                }
+                self.add_text(&line, self.font, 10.0, definition_offset, y_fraction, None)?;
+                y_fraction -= definition_line_height_fraction;
+            }
+
+            y_fraction -= 0.5 * definition_line_height_fraction;
         }
 
         Ok(())
@@ -611,6 +632,37 @@ impl<'a> PageManager<'a> {
         current_page.objects_mut().remove_object(temp_object)?;
 
         Ok(total_width / self.page_width)
+    }
+
+    /// Wrap text lines to prevent page overflows.
+    fn wrap_text(&self, text: &str, offset: f32, max_width: f32, font: PdfFontToken, font_size: f32) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut current_line = String::new();
+        let words = text.split_whitespace();
+        let available_width = max_width - offset;
+
+        for word in words {
+            let test_line = if current_line.is_empty() {
+                word.to_string()
+            } else {
+                format!("{} {}", current_line, word)
+            };
+
+            if self.get_text_width(&test_line, font, font_size).unwrap() <= available_width {
+                current_line = test_line;
+            } else {
+                if !current_line.is_empty() {
+                    lines.push(current_line);
+                }
+                current_line = word.to_owned();
+            }
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        lines
     }
 }
 
