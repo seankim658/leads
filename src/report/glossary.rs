@@ -1,13 +1,23 @@
+//! # Glossary Module
 //!
+//! This module defines the Glossary struct and related constants for generating
+//! a glossary of terms used in the data analysis report.
 
 use polars::datatypes::DataType;
 
+/// A struct representing a glossary of data analysis terms and their definitions.
 pub struct Glossary {
+    /// An array representing data analysis terms.
     pub terms: [&'static str; 15],
+    /// An array containing the definitions for the corresponding terms.
     pub definitions: [&'static str; 15],
 }
 
 impl Glossary {
+    /// Creates a new `Glossary` instance with predefined terms and definitions.
+    ///
+    /// ### Returns
+    /// - `Glossary`: A new `Glossary` struct initialized with the `TERMS` and `DEFINITIONS` constants.
     pub fn new() -> Self {
         Self {
             terms: TERMS,
@@ -16,6 +26,7 @@ impl Glossary {
     }
 }
 
+/// Array of data analysis terms used in the glossary.
 pub const TERMS: [&'static str; 15] = [
     "bool",
     "count",
@@ -34,6 +45,7 @@ pub const TERMS: [&'static str; 15] = [
     "str",
 ];
 
+/// Array of definitions corresponding to the terms in the `TERMS` array.
 pub const DEFINITIONS: [&'static str; 15] = [
     "A boolean value, either true or false.", // bool
     "The number of items in a dataset or column.", // count
@@ -52,6 +64,13 @@ pub const DEFINITIONS: [&'static str; 15] = [
     "A string, or text value.", // str
 ];
 
+/// Categorizes a `DataType` into a high-level category.
+///
+/// ### Parameters
+/// - `data_type`: A reference to a `DataType` to be categorized.
+///
+/// ### Returns
+/// - `String`: String representing the high-level category of the input `DataType`.
 pub fn get_data_type_category(data_type: &DataType) -> String {
     match data_type {
         DataType::Boolean => "Boolean".to_owned(),

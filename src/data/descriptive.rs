@@ -1,6 +1,67 @@
 //! # Descriptive Analysis Module
 //!
+//! This module handles the calculation and storage of basic descriptive analysis results for datasets.
+//! It provides structures and methods to compute and access various statistical measures for numerical
+//! features in a given dataset.
+//!
+//! ## Design Overview
+//!
+//! The module is built around two main structures:
+//! - `DescriptiveAnalysis`: Represents the overall analysis results for a dataset.
+//! - `FeatureStats`: Holds the detailed statistical measures for all numerical features.
+//!
+//! ### DescriptiveAnalysis Structure
+//!
+//! `DescriptiveAnalysis` serves as the main interface for accessing analysis results. It contains:
+//! - Basic dataset information (number of rows and columns)
+//! - A `FeatureStats` instance holding detailed statistics
+//! - Mapping structures to efficiently access specific statistics for each feature
+//!
+//! ### FeatureStats Design
+//!
+//! `FeatureStats` is implemented as a wrapper around a Polars DataFrame with a specific structure,
+//! it contains only one row, where each column represents a specific statistic for a feature.
+//!
+//! The single-row structure has certain characteristics:
+//! 1. It leverages Polars' columnar storage, which may affect performance and memory usage
+//! 2. Allows for vectorized operations across all features simultaneously
+//! 3. Requires additional mapping structures for data access
+//!
+//! To navigate this structure, two mapping structures are used:
+//! - `column_map`: Maps statistic names to their respective column indices
+//! - `feature_indices`: Maps feature names to their starting column index in the DataFrame
+//!
+//! This approach enables O(1) access to any specific statistic for any feature, given the
+//! current DataFrame structure.
+//!
+//! Note: The efficacy of this design may vary depending on specific use cases and dataset
+//! characteristics. Future optimizations might involve reassessing this structure based on
+//! performance profiling and specific application needs.
+//!
+//! ### Efficient Access to Statistics
+//!
+//! To provide fast access to specific statistics without multiple DataFrame lookups, the module uses:
+//! - `column_map`: Maps statistic names to column indices in the FeatureStats DataFrame
+//! - `feature_indices`: Maps feature names to row indices in the FeatureStats DataFrame
+//!
+//! This approach allows for O(1) access to any specific statistic for any feature.
+//!
+//! ## Usage
+//!
+//! To perform descriptive analysis on a dataset:
+//! 1. Create a `DescriptiveAnalysis` instance using a LazyFrame and its schema
+//! 2. Access overall dataset information directly from the `DescriptiveAnalysis` instance
+//! 3. Use provided methods to retrieve specific statistics for features of interest
+//!
+//! ## Error Handling
+//!
+//! The module uses a custom `DescriptiveError` enum to handle various error scenarios, including:
+//! - Polars operation failures
+//! - Invalid column or index access attempts
+//! - Data type conversion issues
+//!
 //! ## Examples
+//! TODO
 //! ```
 //! ```
 
@@ -41,9 +102,9 @@ pub struct DescriptiveAnalysis {
     pub n_cols: u64,
     /// The map of each feature's descriptive analysis results.
     pub column_stats: FeatureStats,
-    /// The column offset map.
+    /// The column offset map for accessing specific statistics.
     pub column_map: IndexMap<String, usize>,
-    /// Offset indices for each feature.
+    /// Offset indices for each feature in the FeatureStats Dataframe.
     pub feature_indices: IndexMap<String, usize>,
 }
 
@@ -54,6 +115,17 @@ impl DescriptiveAnalysis {
     ///
     /// - `lazy_df`: Reference to the LazyFrame.
     /// - `schema`: Reference to the lazy frame's schema.
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<Self, DescriptiveError>`: A new DescriptiveAnalysis instance or an error.
+    ///
+    /// ### Errors
+    ///
+    /// This method can return a DescriptiveError if:
+    /// - There's an issue with Polars operations.
+    /// - There are no numeric columns in the dataset.
+    /// - There's an issue accessing the computed statistics.
     pub fn new(lazy_df: &LazyFrame, schema: &Schema) -> Result<Self, DescriptiveError> {
         let n_cols = schema.len() as u64;
         let numeric_columns: Vec<String> = schema
@@ -145,7 +217,7 @@ impl DescriptiveAnalysis {
     }
 }
 
-/// Struct to hold an individual feature's (column) descriptive analysis results.
+/// Struct to hold descriptive analysis results for all features.
 #[derive(Debug)]
 pub struct FeatureStats(DataFrame);
 
@@ -159,18 +231,23 @@ impl FeatureStats {
         Ok(Self(df))
     }
 
-    /// Gets a vector of all the descriptive analysis values for printing.
+    /// Gets a vector of all the descriptive analysis values for each feature.
     ///
     /// ### Parameters
     ///
-    /// - `feature`: The feature to get the descriptive analysis data for.
-    /// - `feature_indices`: The map of offsets for each feature.
+    /// - `feature_indices`: The map of offsets for each feature in the DataFrame.
     /// - `column_map`: The map of offsets for each descriptive analysis metric.
     ///
     /// ### Returns
     ///
-    /// - `Result<IndexMap<String, String>, DescriptiveError>`: The IndexMap containing each metric
-    /// name as a key and the corresponding metric value as a string or the propagated DescriptiveError.
+    /// - `Result<Vec<IndexMap<String, String>>, DescriptiveError>`: A vector of IndexMaps,
+    ///   each containing the statistics for a feature, or an error.
+    ///
+    /// ### Errors
+    ///
+    /// This method can return a DescriptiveError if:
+    /// - The DataFrame is empty.
+    /// - There's an issue accessing a specific statistic.
     pub fn get_analysis_values(
         &self,
         feature_indices: &IndexMap<String, usize>,
@@ -202,7 +279,23 @@ impl FeatureStats {
         Ok(result)
     }
 
-    /// Gets the row count as u64.
+    /// Gets the row count for a specific feature.
+    ///
+    /// ### Parameters
+    ///
+    /// - `feature`: The name of the feature.
+    /// - `feature_indices`: The map of offsets for each feature in the DataFrame.
+    /// - `column_map`: The map of offsets for each descriptive analysis metric.
+    ///
+    /// ### Returns
+    ///
+    /// - `Result<u64, DescriptiveError>`: The count as a u64, or an error.
+    ///
+    /// ### Errors
+    ///
+    /// This method can return a DescriptiveError if:
+    /// - The feature doesn't exist.
+    /// - The count cannot be converted to a u64.
     pub fn get_count(
         &self,
         feature: &str,
