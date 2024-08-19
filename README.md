@@ -17,9 +17,8 @@ Currently supports `.csv`, `.tsv`, and `.parquet` files for inputs and `.pdf` fi
 - Report analysis sections:
   - Data type analysis:
     - [x] Identification of feature data types.
-    - [ ] Unique value counts for categorical variables.
   - Basic dataset information and descriptive statistics:
-    - [ ] Number of rows and columns.
+    - [x] Number of rows and columns.
     - [x] Column names and data types.
     - [x] Min, max, mean, median, standard deviation.
     - [x] Quartiles and interquartile ranges.
@@ -41,6 +40,7 @@ Currently supports `.csv`, `.tsv`, and `.parquet` files for inputs and `.pdf` fi
     - [ ] Scatter plots.
     - [ ] Correlation heatmaps.
     - [ ] Pair plots for multivariate data.
+    - [ ] Unique value counts for categorical variables.
   - Multicollinearity checks:
     - [ ] Correlation matrix.
     - [ ] Variance inflation factor (VIF).
