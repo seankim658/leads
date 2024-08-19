@@ -23,9 +23,9 @@ pub const ITALIC_FONT: PdfFontBuiltin = PdfFontBuiltin::TimesItalic;
 /// Section header font size.
 pub const SECTION_HEADER_FONT_SIZE: f32 = 24.0;
 /// Sub-header for feature names.
-pub const FEATURE_HEADER_FONT_SIZE: f32 = 18.0;
+pub const FEATURE_HEADER_FONT_SIZE: f32 = 14.0;
 /// Normal text font size.
-pub const FONT_SIZE: f32 = 14.0;
+pub const FONT_SIZE: f32 = 12.0;
 /// Bottom page margin.
 pub const BOTTOM_MARGIN: f32 = 0.1;
 /// Padding between normal lines of text.
@@ -291,8 +291,22 @@ impl<'a> PageManager<'a> {
             y_start,
             None,
         )?;
-        self.add_text("Data Type", self.bold_font, FONT_SIZE, column2_x, y_start, None)?;
-        self.add_text("Category", self.bold_font, FONT_SIZE, column3_x, y_start, None)?;
+        self.add_text(
+            "Data Type",
+            self.bold_font,
+            FONT_SIZE,
+            column2_x,
+            y_start,
+            None,
+        )?;
+        self.add_text(
+            "Category",
+            self.bold_font,
+            FONT_SIZE,
+            column3_x,
+            y_start,
+            None,
+        )?;
 
         self.add_line(
             column1_x,
@@ -385,9 +399,24 @@ impl<'a> PageManager<'a> {
             None,
         )?;
 
-        let mut y_fraction = 0.85;
+        let mut y_fraction = 0.86;
         let line_height_fraction = FONT_SIZE / self.page_height + LINE_HEIGHT_PADDING;
         let feature_line_height_fraction = FEATURE_HEADER_FONT_SIZE / self.page_height;
+
+        self.add_text("Shape:", self.bold_font, FONT_SIZE, 0.1, y_fraction, None)?;
+        let shape_txt_width = self.get_text_width("Shape:", self.bold_font, FONT_SIZE)?;
+        self.add_text(
+            &format!(
+                "{} rows, {} columns",
+                descriptive_analysis.n_rows, descriptive_analysis.n_cols
+            ),
+            self.font,
+            FONT_SIZE,
+            0.1 + shape_txt_width + 0.005,
+            y_fraction,
+            None,
+        )?;
+        y_fraction -= 2.0 * line_height_fraction;
 
         let analysis_values = descriptive_analysis.column_stats.get_analysis_values(
             &descriptive_analysis.feature_indices,
