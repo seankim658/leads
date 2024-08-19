@@ -1,6 +1,9 @@
 //! # Base Data Module
 //!
-//! This module handles the data load into a Polars dataframe.
+//! This module handles loading data into a Polars LazyFrame from various file formats.
+//! It provides functionality to read CSV, TSV, and Parquet files, and performs initial
+//! data processing and analysis.
+//!
 //! TODO : clean this up
 //! ## Examples
 //! ```
@@ -45,29 +48,34 @@ pub enum DataError {
     DuplicateHeader(String),
 }
 
-/// Struct to hold the data information.
+/// Struct to hold the data information, analysis results, and analysis metadata.
 pub struct DataInfo {
     /// Name of the dataset (inferred from the file name).
     pub data_title: String,
-    /// The column names (or indices) of the dataset.
+    /// Map of column names to their data types.
     pub column_types: IndexMap<String, DataType>,
-    /// The polars dataframe of the data.
+    /// The Polars LazyFrame containing the data.
     pub data: LazyFrame,
-    /// The descriptive analysis data.
+    /// The descriptive analysis results for the dataset.
     pub descriptive_analysis: DescriptiveAnalysis,
 }
 
 impl DataInfo {
-    /// Constructor for the DataInfo struct.
+    /// Constructs a new DataInfo instance by reading and analyzing a data file.
     ///
     /// ### Parameters
     /// - `path`: The path to the data file.
-    /// - `headers`: Whether there is a header row in the data file.
+    /// - `headers`: Optional boolean indicating whether the file has headers. Defaults to true if not provided.
     ///
     /// ### Returns
+    /// - `Result<Self, LeadsError>`: A new DataInfo instance or an error.
     ///
-    /// - `Result<Self, DataError>`: The DataInfo struct or a propagated LeadsError.
-    ///
+    /// ### Errors
+    /// This method can return a LeadsError if:
+    /// - The file cannot be read or parsed.
+    /// - The file format is unsupported.
+    /// - There are duplicate column headers.
+    /// - The descriptive analysis fails.
     pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, LeadsError> {
         let headers = headers.unwrap_or(true);
         let mut lazy_df = read_file(path, headers)?;
@@ -108,6 +116,19 @@ impl DataInfo {
     }
 }
 
+/// Reads a file and returns a LazyFrame based on the file extension.
+///
+/// ### Parameters
+/// - `path`: The path to the file.
+/// - `headers`: Boolean indicating whether the file has headers.
+///
+/// ### Returns
+/// - `Result<LazyFrame, DataError>`: A LazyFrame containing the file data or an error.
+///
+/// ### Errors
+/// This function can return a DataError if:
+/// - The file extension is unsupported or missing.
+/// - The file cannot be read or parsed.
 fn read_file(path: &PathBuf, headers: bool) -> Result<LazyFrame, DataError> {
     match path.extension().and_then(OsStr::to_str) {
         Some("csv") => read_csv(path, headers),
