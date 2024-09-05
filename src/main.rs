@@ -40,8 +40,6 @@ fn main() -> LeadsResult<()> {
         &spinner,
     )?;
 
-    // TODO Start exploratory analysis.
-
     // Create page manager.
     let pdfium = Pdfium::default();
     let mut page_manager = handle_operation(
