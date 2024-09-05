@@ -3,7 +3,7 @@
 //! Handles the base implementation of generating a comprehensive PDF report with the exploratory
 //! analysis findings.
 
-use crate::prelude::{DataInfo, DescriptiveAnalysis, LeadsError};
+use crate::prelude::{DataInfo, DescriptiveAnalysis, LeadsError, MissingValueAnalysis};
 use indexmap::IndexMap;
 use pdfium_render::prelude::*;
 use polars::datatypes::DataType;
@@ -96,6 +96,7 @@ impl<'a> PageManager<'a> {
         self.create_title_page(&data_info.data_title)?;
         self.create_data_types_page(&data_info.column_types)?;
         self.create_descriptive_analysis_page(&data_info.descriptive_analysis)?;
+        self.create_missing_values_page(&data_info.missing_value_analysis)?;
         self.create_glossary_page()?;
         self.create_table_of_contents()?;
         Ok(())
@@ -499,6 +500,89 @@ impl<'a> PageManager<'a> {
             }
 
             y_fraction -= 1.5 * line_height_fraction;
+        }
+
+        Ok(())
+    }
+
+    /// Create the missing values analysis pages.
+    pub fn create_missing_values_page(
+        &mut self,
+        missing_values_analysis: &MissingValueAnalysis,
+    ) -> Result<(), PdfError> {
+        self.new_page()?;
+        self.section_page_map
+            .insert("Missing Values Analysis".to_owned(), self.current_page - 1);
+
+        self.add_text(
+            "Missing Values Analysis",
+            self.bold_font,
+            SECTION_HEADER_FONT_SIZE,
+            0.1,
+            0.9,
+            None,
+        )?;
+
+        let mut y_fraction = 0.85;
+        let line_height_fraction = FONT_SIZE / self.page_height + (LINE_HEIGHT_PADDING + 0.005);
+
+        // Add table headers (Feature, Missing Count, Missing Percentage).
+        self.add_text("Feature", self.bold_font, FONT_SIZE, 0.1, y_fraction, None)?;
+        self.add_text(
+            "Missing Count",
+            self.bold_font,
+            FONT_SIZE,
+            0.4,
+            y_fraction,
+            None,
+        )?;
+        self.add_text(
+            "Missing Percentage",
+            self.bold_font,
+            FONT_SIZE,
+            0.7,
+            y_fraction,
+            None,
+        )?;
+
+        // Draw a separator line
+        self.add_line(0.1, y_fraction - 0.02, 0.9, y_fraction - 0.02, 1.0)?;
+
+        y_fraction -= 2.0 * line_height_fraction;
+
+        // Iterate over the missing values data and display.
+        for (column, (missing_count, missing_percentage)) in
+            &missing_values_analysis.column_missing_values
+        {
+            // Add column name.
+            self.add_text(column, self.font, FONT_SIZE, 0.1, y_fraction, None)?;
+
+            // Add missing count.
+            self.add_text(
+                &format!("{}", missing_count),
+                self.font,
+                FONT_SIZE,
+                0.4,
+                y_fraction,
+                None,
+            )?;
+
+            // Add missing percentage.
+            self.add_text(
+                &format!("{:.2}%", missing_percentage),
+                self.font,
+                FONT_SIZE,
+                0.7,
+                y_fraction,
+                None,
+            )?;
+
+            // Move to the next line, and add page breaks if necessary.
+            y_fraction -= line_height_fraction;
+            if self.need_new_page(y_fraction, line_height_fraction) {
+                self.new_page()?;
+                y_fraction = 0.9;
+            }
         }
 
         Ok(())
