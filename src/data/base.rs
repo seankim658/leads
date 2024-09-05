@@ -9,7 +9,10 @@
 //! ```
 //! ```
 
-use crate::{data::descriptive::DescriptiveAnalysis, LeadsError};
+use crate::{
+    data::{descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis},
+    LeadsError,
+};
 use indexmap::IndexMap;
 use polars::prelude::*;
 use std::ffi::OsStr;
@@ -58,6 +61,8 @@ pub struct DataInfo {
     pub data: LazyFrame,
     /// The descriptive analysis results for the dataset.
     pub descriptive_analysis: DescriptiveAnalysis,
+    /// The missing values analysis results for the dataset.
+    pub missing_value_analysis: MissingValueAnalysis,
 }
 
 impl DataInfo {
@@ -106,12 +111,15 @@ impl DataInfo {
         }
 
         let descriptive_analysis = DescriptiveAnalysis::new(&lazy_df, &schema)?;
+        let missing_value_analysis =
+            MissingValueAnalysis::new(&lazy_df, &schema, descriptive_analysis.n_rows)?;
 
         Ok(DataInfo {
             data_title,
             column_types,
             data: lazy_df,
             descriptive_analysis,
+            missing_value_analysis,
         })
     }
 }
