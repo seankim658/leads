@@ -52,26 +52,31 @@ pub enum LeadsError {
     Report(#[from] report::pdf::PdfError),
 
     #[error("Descriptive analysis error -> {0}")]
-    DescriptiveAnalysis(#[from] data::descriptive::DescriptiveError)
+    DescriptiveAnalysis(#[from] data::descriptive::DescriptiveError),
+
+    #[error("Missing values analysis error -> {0}")]
+    MissingValuesAnalysis(#[from] data::missing_values::MissingValueError),
 }
 
 pub mod data {
     pub mod base;
     pub mod descriptive;
+    pub mod missing_values;
 }
 
 pub mod report {
-    pub mod pdf;
     pub mod glossary;
+    pub mod pdf;
 }
 
 pub mod spinner;
 
 pub mod prelude {
-    pub use crate::{LeadsResult, LeadsError};
     pub use crate::data::base::DataInfo;
-    pub use crate::report::pdf::PageManager;
     pub use crate::data::descriptive::DescriptiveAnalysis;
+    pub use crate::data::missing_values::MissingValueAnalysis;
+    pub use crate::report::pdf::PageManager;
+    pub use crate::{LeadsError, LeadsResult};
     /// Re-exports.
     pub use pdfium_render::pdfium::Pdfium;
 }
