@@ -1,0 +1,17 @@
+[build]
+output_path = "dist"
+
+[package]
+name = "leads"
+executable = "target/debug/leads"
+
+[package.python_distribution]
+python_version = "3.10"
+include_standard_library = true
+
+[package.python_source]
+path = "python"
+pip_install_args = ["-r", "python/requirements.txt"]
+
+[[package.python_module]]
+path = "python"
