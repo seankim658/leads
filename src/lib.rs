@@ -45,6 +45,9 @@ pub type LeadsResult<T> = std::result::Result<T, LeadsError>;
 
 #[derive(Error, Debug)]
 pub enum LeadsError {
+    #[error("IO error -> {0}")]
+    IOError(#[from] std::io::Error),
+
     #[error("Data error -> {0}")]
     Data(#[from] data::base::DataError),
 
@@ -62,6 +65,7 @@ pub mod data {
     pub mod base;
     pub mod descriptive;
     pub mod missing_values;
+    pub mod visualizations;
 }
 
 pub mod report {
@@ -75,6 +79,7 @@ pub mod prelude {
     pub use crate::data::base::DataInfo;
     pub use crate::data::descriptive::DescriptiveAnalysis;
     pub use crate::data::missing_values::MissingValueAnalysis;
+    pub use crate::data::visualizations::VisualizationManager;
     pub use crate::report::pdf::PageManager;
     pub use crate::{LeadsError, LeadsResult};
     /// Re-exports.
