@@ -10,7 +10,10 @@
 //! ```
 
 use crate::{
-    data::{descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis},
+    data::{
+        descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis,
+        visualizations::VisualizationManager,
+    },
     LeadsError,
 };
 use indexmap::IndexMap;
@@ -63,6 +66,8 @@ pub struct DataInfo {
     pub descriptive_analysis: DescriptiveAnalysis,
     /// The missing values analysis results for the dataset.
     pub missing_value_analysis: MissingValueAnalysis,
+    /// The visualization results (if applicable) for the dataset.
+    pub visualizations: Option<VisualizationManager>,
 }
 
 impl DataInfo {
@@ -71,6 +76,8 @@ impl DataInfo {
     /// ### Parameters
     /// - `path`: The path to the data file.
     /// - `headers`: Optional boolean indicating whether the file has headers. Defaults to true if not provided.
+    /// - `plot_dir`: Optional plot directory to store the plots. If user ran with visualizations
+    /// this will be the directory path, otherwise is `None`.
     ///
     /// ### Returns
     /// - `Result<Self, LeadsError>`: A new DataInfo instance or an error.
@@ -81,7 +88,11 @@ impl DataInfo {
     /// - The file format is unsupported.
     /// - There are duplicate column headers.
     /// - The descriptive analysis fails.
-    pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, LeadsError> {
+    pub fn new(
+        path: &PathBuf,
+        headers: Option<bool>,
+        plot_dir: &Option<PathBuf>,
+    ) -> Result<Self, LeadsError> {
         let headers = headers.unwrap_or(true);
         let mut lazy_df = read_file(path, headers)?;
 
@@ -114,12 +125,15 @@ impl DataInfo {
         let missing_value_analysis =
             MissingValueAnalysis::new(&lazy_df, &schema, descriptive_analysis.n_rows)?;
 
+        // TODO : implement visualization
+
         Ok(DataInfo {
             data_title,
             column_types,
             data: lazy_df,
             descriptive_analysis,
             missing_value_analysis,
+            visualizations: None,
         })
     }
 }
