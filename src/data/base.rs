@@ -91,10 +91,24 @@ impl DataInfo {
     pub fn new(
         path: &PathBuf,
         headers: Option<bool>,
-        plot_dir: &Option<PathBuf>,
+        plot_dir: Option<&PathBuf>,
     ) -> Result<Self, LeadsError> {
         let headers = headers.unwrap_or(true);
-        let mut lazy_df = read_file(path, headers)?;
+
+        // Get the file extension and process accordingly.
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| DataError::FilenameParse("No file extension found".to_owned()))?;
+        let mut lazy_df = match extension {
+            "csv" => read_csv(path, headers),
+            "tsv" => read_tsv(path, headers),
+            "parquet" => read_parquet(path),
+            _ => Err(DataError::UnsupportedFormat(format!(
+                "Unsupported file format: {}",
+                extension
+            ))),
+        }?;
 
         let data_title = path
             .as_path()
@@ -125,7 +139,11 @@ impl DataInfo {
         let missing_value_analysis =
             MissingValueAnalysis::new(&lazy_df, &schema, descriptive_analysis.n_rows)?;
 
-        // TODO : implement visualization
+        let visualization_manager = if plot_dir.is_some() {
+            Some(VisualizationManager::new(path, extension, plot_dir.unwrap())?)
+        } else {
+            None
+        };
 
         Ok(DataInfo {
             data_title,
@@ -133,7 +151,7 @@ impl DataInfo {
             data: lazy_df,
             descriptive_analysis,
             missing_value_analysis,
-            visualizations: None,
+            visualizations: visualization_manager,
         })
     }
 }
@@ -151,6 +169,7 @@ impl DataInfo {
 /// This function can return a DataError if:
 /// - The file extension is unsupported or missing.
 /// - The file cannot be read or parsed.
+#[deprecated(since="0.0.1", note="File readers are used directly instead of through this mapping function.")]
 fn read_file(path: &PathBuf, headers: bool) -> Result<LazyFrame, DataError> {
     match path.extension().and_then(OsStr::to_str) {
         Some("csv") => read_csv(path, headers),

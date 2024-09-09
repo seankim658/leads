@@ -24,7 +24,7 @@ Currently supports `.csv`, `.tsv`, and `.parquet` files for inputs and `.pdf` fi
     - [x] Quartiles and interquartile ranges.
     - [x] Skewness and kurtosis.
   - Missing value analysis:
-    - [ ] Count and percentage of missing values per column.
+    - [x] Count and percentage of missing values per column.
     - [ ] Visualization of missing value patterns.
   - Distribution analysis:
     - [ ] Normality tests (Shapiro-Wilk, Anderson-Darling).

@@ -59,6 +59,9 @@ pub enum LeadsError {
 
     #[error("Missing values analysis error -> {0}")]
     MissingValuesAnalysis(#[from] data::missing_values::MissingValueError),
+
+    #[error("Visualizations error -> {0}")]
+    VisualizationError(#[from] data::visualizations::VisualizationError),
 }
 
 pub mod data {

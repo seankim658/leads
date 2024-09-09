@@ -51,12 +51,12 @@ fn main() -> LeadsResult<()> {
 
     // Read in data.
     let data = handle_operation(
-        || DataInfo::new(&args.path, Some(args.headers), &plots_dir),
+        || DataInfo::new(&args.path, Some(args.headers), plots_dir.as_ref()),
         "Finished reading file!",
         "Failed reading file!",
         &spinner,
     )?;
-    
+
     // Extract and format the dataset name for the report name.
     let report_filename = format!("{}_report.pdf", data.data_title.replace(" ", "_"));
     let report_path = output_dir.join(report_filename);
