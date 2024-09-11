@@ -9,32 +9,43 @@ use thiserror::Error;
 /// The error types for the missing values module.
 #[derive(Error, Debug)]
 pub enum MissingValueError {
-    /// Occurs when Polars fails to complete an operation.
+    /// Error raised when an operation fails due to Polars-specific issues.
     #[error("Polars error: {0}")]
     Polars(#[from] PolarsError),
 
-    /// Occurs when trying to interact with a column that doesn't exist.
+    /// Error raised when attempting to access a column that doesn't exist.
     #[error("Non-existent column: {0}")]
     InvalidCol(String),
 }
 
-/// Struct to hold the missing value analysis results.
+/// Holds the results of missing value analysis for each column in a dataset.
 #[derive(Debug)]
 pub struct MissingValueAnalysis {
-    /// A map containing the missing value count and percentage for each column.
+    /// A map where each key is a column name and the value is a tuple containing:
+    /// - the count of missing values
+    /// - the percentage of missing values relative to the total number of rows
     pub column_missing_values: IndexMap<String, (u64, f64)>,
 }
 
 impl MissingValueAnalysis {
-    /// Constructor for the MissingValueAnalysis struct.
+    /// Creates a new `MissingValueAnalysis` by calculating the number of missing values
+    /// for each column in the dataset.
     ///
-    /// ### Parameters
-    /// - `lazy_df`: Reference to the LazyFrame.
-    /// - `schema`: Reference to the lazy frame's schema.
-    /// - `n_rows`: Number of rows for the dataset.
+    /// # Parameters
     ///
-    /// ### Returns
-    /// - `Result<Self, MissingValueError>`: MissingValueAnalysis results or an error.
+    /// * `lazy_df` - A reference to the LazyFrame representing the dataset to analyze.
+    /// * `schema` - The schema of the dataset, used to identify the columns.
+    /// * `n_rows` - The total number of rows in the dataset, used to calculate percentages.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the analysis results (`MissingValueAnalysis`)
+    /// or an error (`MissingValueError`) if an operation fails.
+    ///
+    /// # Errors
+    ///
+    /// This function will return `MissingValueError::Polars` if Polars fails during an operation,
+    /// or `MissingValueError::InvalidCol` if it tries to analyze a column that doesn't exist.
     pub fn new(
         lazy_df: &LazyFrame,
         schema: &Schema,
