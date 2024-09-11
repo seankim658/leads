@@ -8,6 +8,8 @@
 //!
 //! ## Quickstart
 //!
+//! TODO
+//!
 //! ## Direct Dependencies
 //!
 //! - [chrono-0.4.38](https://docs.rs/chrono/0.4.38/chrono/index.html) used for date and time
@@ -30,39 +32,46 @@
 //!     - [polars-parquet-0.41.3](https://docs.rs/polars-parquet/0.41.3/polars_parquet/index.html) for support for reading parquet files.
 //!     - **moment** for kurtosis and skew statistics.
 //!     - **dtype-array** for array data types.
-//! - [thiserror-1.0.63](https://docs.rs/thiserror/1.0.63/thiserror/index.html) for defining
-//! library errors.
-//! - [pyo3-0.22.2](https://docs.rs/pyo3/0.22.2/pyo3/index.html) for Python interoperability for
-//! creating dataset visualizations.
-//!   - Opt-in features:
-//!     - **auto-initialize** for automatically intializing the Python interpreter when the Python
-//!     code is called from Rust.
+//!     - **random** for random sampling of the dataset.
+//! - [thiserror-1.0.63](https://docs.rs/thiserror/1.0.63/thiserror/index.html) for defining library errors.
+//! - [plotters-0.3.7](https://docs.rs/plotters/latest/plotters/) for generating visualizations.
 
 use thiserror::Error;
 
-/// LEADS result type alias.
+/// LEADS result type alias, used for handling results throughout the crate.
+///
+/// It returns either a value of type `T` or a `LeadsError`.
 pub type LeadsResult<T> = std::result::Result<T, LeadsError>;
 
+/// High level errors in the LEADS crate.
 #[derive(Error, Debug)]
 pub enum LeadsError {
+    /// Error related to input/output operations.
+    #[error("IO error -> {0}")]
+    IOError(#[from] std::io::Error),
+
+    /// Errors from the base module.
     #[error("Data error -> {0}")]
     Data(#[from] data::base::DataError),
 
+    /// Errors from the PDF report module.
     #[error("Report error -> {0}")]
     Report(#[from] report::pdf::PdfError),
 
+    /// Errors from the descriptive analysis module.
     #[error("Descriptive analysis error -> {0}")]
     DescriptiveAnalysis(#[from] data::descriptive::DescriptiveError),
 
+    /// Errors from the missing values analysis module. 
     #[error("Missing values analysis error -> {0}")]
     MissingValuesAnalysis(#[from] data::missing_values::MissingValueError),
+
+    /// Errors from the visualiztion module.
+    #[error("Visualizations error -> {0}")]
+    VisualizationError(#[from] data::visualizations::VisualizationError),
 }
 
-pub mod data {
-    pub mod base;
-    pub mod descriptive;
-    pub mod missing_values;
-}
+pub mod data;
 
 pub mod report {
     pub mod glossary;
@@ -75,6 +84,7 @@ pub mod prelude {
     pub use crate::data::base::DataInfo;
     pub use crate::data::descriptive::DescriptiveAnalysis;
     pub use crate::data::missing_values::MissingValueAnalysis;
+    pub use crate::data::visualizations::VisualizationManager;
     pub use crate::report::pdf::PageManager;
     pub use crate::{LeadsError, LeadsResult};
     /// Re-exports.
