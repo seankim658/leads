@@ -10,7 +10,10 @@
 //! ```
 
 use crate::{
-    data::{descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis},
+    data::{
+        descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis,
+        visualizations::VisualizationManager,
+    },
     LeadsError,
 };
 use indexmap::IndexMap;
@@ -63,6 +66,8 @@ pub struct DataInfo {
     pub descriptive_analysis: DescriptiveAnalysis,
     /// The missing values analysis results for the dataset.
     pub missing_value_analysis: MissingValueAnalysis,
+    /// The visualization results (if applicable) for the dataset.
+    pub visualizations: Option<VisualizationManager>,
 }
 
 impl DataInfo {
@@ -81,7 +86,11 @@ impl DataInfo {
     /// - The file format is unsupported.
     /// - There are duplicate column headers.
     /// - The descriptive analysis fails.
-    pub fn new(path: &PathBuf, headers: Option<bool>) -> Result<Self, LeadsError> {
+    pub fn new(
+        path: &PathBuf,
+        headers: Option<bool>,
+        plot_dir: Option<&PathBuf>,
+    ) -> Result<Self, LeadsError> {
         let headers = headers.unwrap_or(true);
         let mut lazy_df = read_file(path, headers)?;
 
@@ -114,12 +123,24 @@ impl DataInfo {
         let missing_value_analysis =
             MissingValueAnalysis::new(&lazy_df, &schema, descriptive_analysis.n_rows)?;
 
+        let visualization_manager = if plot_dir.is_some() {
+            Some(VisualizationManager::new(
+                plot_dir.unwrap(),
+                &lazy_df,
+                (descriptive_analysis.n_rows, descriptive_analysis.n_cols),
+                &missing_value_analysis,
+            )?)
+        } else {
+            None
+        };
+
         Ok(DataInfo {
             data_title,
             column_types,
             data: lazy_df,
             descriptive_analysis,
             missing_value_analysis,
+            visualizations: visualization_manager,
         })
     }
 }
