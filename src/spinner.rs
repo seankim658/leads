@@ -15,7 +15,6 @@ use std::time::Duration;
 /// ### Returns
 ///
 /// - `ProgressBar`: The configured progress bar.
-///
 pub fn setup_spinner(message: &str) -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
     spinner.enable_steady_tick(Duration::from_millis(120));
