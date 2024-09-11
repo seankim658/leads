@@ -119,13 +119,6 @@ impl DescriptiveAnalysis {
     /// ### Returns
     ///
     /// - `Result<Self, DescriptiveError>`: A new DescriptiveAnalysis instance or an error.
-    ///
-    /// ### Errors
-    ///
-    /// This method can return a DescriptiveError if:
-    /// - There's an issue with Polars operations.
-    /// - There are no numeric columns in the dataset.
-    /// - There's an issue accessing the computed statistics.
     pub fn new(lazy_df: &LazyFrame, schema: &Schema) -> Result<Self, DescriptiveError> {
         let n_cols = schema.len() as u64;
         let numeric_columns: Vec<String> = schema
@@ -242,12 +235,6 @@ impl FeatureStats {
     ///
     /// - `Result<Vec<IndexMap<String, String>>, DescriptiveError>`: A vector of IndexMaps,
     ///   each containing the statistics for a feature, or an error.
-    ///
-    /// ### Errors
-    ///
-    /// This method can return a DescriptiveError if:
-    /// - The DataFrame is empty.
-    /// - There's an issue accessing a specific statistic.
     pub fn get_analysis_values(
         &self,
         feature_indices: &IndexMap<String, usize>,
@@ -290,12 +277,6 @@ impl FeatureStats {
     /// ### Returns
     ///
     /// - `Result<u64, DescriptiveError>`: The count as a u64, or an error.
-    ///
-    /// ### Errors
-    ///
-    /// This method can return a DescriptiveError if:
-    /// - The feature doesn't exist.
-    /// - The count cannot be converted to a u64.
     pub fn get_count(
         &self,
         feature: &str,
