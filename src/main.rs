@@ -14,17 +14,34 @@ struct Args {
     #[arg()]
     output_path: PathBuf,
 
-    /// Indicates whether the file has headers. Defaults to True.
+    /// Indicates whether the file has headers. Absence indicates True.
     #[arg(short = 'r', long, action(ArgAction::SetFalse))]
     headers: bool,
 
-    /// Whether a progress spinner and status messages should be printed.
+    /// Toggle visualization generation. Absence indicates False.
+    #[arg(long, action(ArgAction::SetTrue))]
+    visualizations: bool,
+
+    /// Whether a progress spinner and status messages should be printed (can be useful for large
+    /// datasets). Absence indicates False.
     #[arg(long, action(ArgAction::SetTrue))]
     verbose: bool,
+
+    /// Debug mode (just sets the rust backtrace env variable to 1).
+    #[arg(short = 'd', long, action(ArgAction::SetTrue))]
+    debug: bool
 }
 
 fn main() -> LeadsResult<()> {
     let args = Args::parse();
+
+    if args.debug {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+
+    // Ensure the output directory exists.
+    let output_dir = &args.output_path;
+    std::fs::create_dir_all(output_dir)?;
 
     let spinner = if args.verbose {
         Some(spinner::setup_spinner("Reading in file..."))
@@ -32,13 +49,26 @@ fn main() -> LeadsResult<()> {
         None
     };
 
+    // Create the visulizations directory if needed.
+    let plots_dir = if args.visualizations {
+        let plots_dir = output_dir.join("plots");
+        std::fs::create_dir_all(&plots_dir)?;
+        Some(plots_dir)
+    } else {
+        None
+    };
+
     // Read in data.
     let data = handle_operation(
-        || DataInfo::new(&args.path, Some(args.headers)),
+        || DataInfo::new(&args.path, Some(args.headers), plots_dir.as_ref()),
         "Finished reading file!",
         "Failed reading file!",
         &spinner,
     )?;
+
+    // Extract and format the dataset name for the report name.
+    let report_filename = format!("{}_report.pdf", data.data_title.replace(" ", "_"));
+    let report_path = output_dir.join(report_filename);
 
     // Create page manager.
     let pdfium = Pdfium::default();
@@ -59,7 +89,7 @@ fn main() -> LeadsResult<()> {
 
     // Save report.
     handle_operation(
-        || page_manager.save_to_file(&args.output_path),
+        || page_manager.save_to_file(&report_path),
         &format!(
             "Report successfully generated and saved to location {}",
             &args.output_path.to_str().unwrap_or_default()
