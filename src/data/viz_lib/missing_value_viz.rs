@@ -57,10 +57,10 @@ pub fn build_missing_data_matrix(
     let output_path_clone = output_path.clone();
 
     // Create a new drawing backend that is a 1000x600 pixel image.
-    let root = BitMapBackend::new(&output_path_clone, (1000, 600)).into_drawing_area();
+    let root = BitMapBackend::new(&output_path_clone, (1200, 800)).into_drawing_area();
 
     // Fill the background of the plot with white.
-    root.fill(&WHITE).map_err(|e| {
+    root.fill(&WHITE.mix(0.95)).map_err(|e| {
         MissingValuesPlotError::PlotDrawingError(format!(
             "Error filling the plot background color to white: {}",
             e
@@ -68,14 +68,14 @@ pub fn build_missing_data_matrix(
     })?;
 
     // Split the drawing area into two parts: top for the heatmap, bottom for the legend.
-    let (top, bottom) = root.split_vertically(550);
+    // let (top, _bottom) = root.split_vertically(750);
 
     // Create the chart builder for the heatmap.
-    let mut chart = ChartBuilder::on(&top)
-        .caption(&plot_title, ("sans-serif", 20))
+    let mut chart = ChartBuilder::on(&root)
+        .caption(&plot_title, ("sans-serif", 35))
         .margin(5)
-        .x_label_area_size(30)
-        .y_label_area_size(100)
+        .x_label_area_size(50)
+        .y_label_area_size(80)
         .build_cartesian_2d(0..matrix[0].len(), 0..matrix.len())
         .map_err(|e| {
             MissingValuesPlotError::PlotDrawingError(format!(
@@ -118,39 +118,40 @@ pub fn build_missing_data_matrix(
         })?;
 
     // Create the chart builder for the legend.
-    let mut legend = ChartBuilder::on(&bottom)
-        .margin(5)
-        .x_label_area_size(30)
-        .y_label_area_size(30)
-        .build_cartesian_2d(0..1, 0..1)
-        .map_err(|e| {
-            MissingValuesPlotError::PlotDrawingError(format!("Error building chart legend: {}", e))
-        })?;
-
-    // Draw the legend.
-    legend
-        .draw_series(std::iter::once(Rectangle::new(
-            [(0, 0), (1, 1)],
-            RED.filled(),
-        )))
-        .map_err(|e| {
-            MissingValuesPlotError::PlotDrawingError(format!(
-                "Error drawing missing value legend value: {}",
-                e
-            ))
-        })?
-        .label("Missing")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
-
-    // Configure and draw the legend label(s).
-    legend
-        .configure_series_labels()
-        .background_style(WHITE.filled())
-        .border_style(BLACK)
-        .draw()
-        .map_err(|e| {
-            MissingValuesPlotError::PlotDrawingError(format!("Error configuring legend: {}", e))
-        })?;
+    // let mut legend = ChartBuilder::on(&bottom)
+    //     .margin(5)
+    //     .x_label_area_size(30)
+    //     .y_label_area_size(30)
+    //     .build_cartesian_2d(0..1, 0..1)
+    //     .map_err(|e| {
+    //         MissingValuesPlotError::PlotDrawingError(format!("Error building chart legend: {}", e))
+    //     })?;
+    //
+    // // Draw the legend.
+    // legend
+    //     .draw_series(std::iter::once(Rectangle::new(
+    //         [(0, 0), (20, 20)],
+    //         RED.filled(),
+    //     )))
+    //     .map_err(|e| {
+    //         MissingValuesPlotError::PlotDrawingError(format!(
+    //             "Error drawing missing value legend value: {}",
+    //             e
+    //         ))
+    //     })?
+    //     .label("Missing")
+    //     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
+    //
+    // // Configure and draw the legend label(s).
+    // legend
+    //     .configure_series_labels()
+    //     .background_style(WHITE.mix(0.8))
+    //     .border_style(BLACK)
+    //     .position(SeriesLabelPosition::UpperRight)
+    //     .draw()
+    //     .map_err(|e| {
+    //         MissingValuesPlotError::PlotDrawingError(format!("Error configuring legend: {}", e))
+    //     })?;
 
     Ok((plot_title, output_path))
 }
