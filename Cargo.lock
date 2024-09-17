@@ -1317,6 +1317,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
+ "image 0.25.2",
  "indexmap",
  "indicatif",
  "pdfium-render",

@@ -10,7 +10,8 @@ clap = { version = "4.5.8", features = ["derive"] }
 colored = "2.1.0"
 indexmap = "2.3.0"
 indicatif = "0.17.8"
-pdfium-render = "0.8.22"
+pdfium-render = {version = "0.8.22", features = ["image"]}
 polars = { version = "0.41.3", features = ["lazy", "parquet", "moment", "dtype-array", "random"] }
 thiserror = "1.0.63"
 plotters = "0.3.7"
+image = "0.25.2"
