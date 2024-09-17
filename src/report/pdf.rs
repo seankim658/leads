@@ -3,7 +3,13 @@
 //! Handles the base implementation of generating a comprehensive PDF report with the exploratory
 //! analysis findings.
 
-use crate::prelude::{DataInfo, DescriptiveAnalysis, LeadsError, MissingValueAnalysis};
+use crate::{
+    data::visualizations::ReportSection,
+    prelude::{
+        DataInfo, DescriptiveAnalysis, LeadsError, MissingValueAnalysis, VisualizationManager,
+    },
+};
+use image::{GenericImageView, ImageReader};
 use indexmap::IndexMap;
 use pdfium_render::prelude::*;
 use polars::datatypes::DataType;
@@ -37,6 +43,14 @@ pub enum PdfError {
     /// Occurs on a Pdfium library error.
     #[error("Pdf error: {0}")]
     Pdfium(#[from] pdfium_render::error::PdfiumError),
+
+    /// Occurs when an I/O operation fails.
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// Occurs during an image decoding error
+    #[error("Image error: {0}")]
+    Image(#[from] image::error::ImageError),
 }
 
 /// Struct that keeps track of the current page position and number. Allows for manual page
@@ -96,7 +110,10 @@ impl<'a> PageManager<'a> {
         self.create_title_page(&data_info.data_title)?;
         self.create_data_types_page(&data_info.column_types)?;
         self.create_descriptive_analysis_page(&data_info.descriptive_analysis)?;
-        self.create_missing_values_page(&data_info.missing_value_analysis)?;
+        self.create_missing_values_page(
+            &data_info.missing_value_analysis,
+            &data_info.visualizations,
+        )?;
         self.create_glossary_page()?;
         self.create_table_of_contents()?;
         Ok(())
@@ -509,6 +526,7 @@ impl<'a> PageManager<'a> {
     pub fn create_missing_values_page(
         &mut self,
         missing_values_analysis: &MissingValueAnalysis,
+        visualizations: &Option<VisualizationManager>,
     ) -> Result<(), PdfError> {
         self.new_page()?;
         self.section_page_map
@@ -582,6 +600,20 @@ impl<'a> PageManager<'a> {
             if self.need_new_page(y_fraction, line_height_fraction) {
                 self.new_page()?;
                 y_fraction = 0.9;
+            }
+        }
+
+        // Add visualizations if applicable.
+        if let Some(viz_manager) = visualizations {
+            if let Some(missing_values_plots) = viz_manager
+                .visualizations
+                .get(&ReportSection::MissingValues)
+            {
+                for (_, plot_path) in missing_values_plots {
+                    y_fraction -= 2.0 * line_height_fraction;
+                    self.add_image(plot_path, 0.8, 0.6, &mut y_fraction)?;
+                    y_fraction -= 2.0 * line_height_fraction;
+                }
             }
         }
 
@@ -690,6 +722,54 @@ impl<'a> PageManager<'a> {
         )?;
         let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
         current_page.objects_mut().add_text_object(text_object)?;
+        Ok(())
+    }
+
+    /// Helper function to add an image to a page.
+    fn add_image(
+        &mut self,
+        path: &PathBuf,
+        max_width: f32,
+        max_height: f32,
+        y_fraction: &mut f32,
+    ) -> Result<(), PdfError> {
+        let img = ImageReader::open(path)?.decode()?;
+        let (img_width, img_height) = img.dimensions();
+
+        // Calculate scaling factors.
+        let width_scale = max_width / (img_width as f32 / self.page_width);
+        let height_scale = max_height / (img_height as f32 / self.page_height);
+        let scale = width_scale.min(height_scale);
+
+        let scaled_width = (img_width as f32 * scale) / self.page_width;
+        let scaled_height = (img_height as f32 * scale) / self.page_height;
+
+        if self.need_new_page(*y_fraction, scaled_height) {
+            self.new_page()?;
+            *y_fraction = 0.9;
+        }
+
+        let mut image_object = PdfPageImageObject::new(&self.document, &img)?;
+
+        image_object.scale(
+            self.page_width * scaled_width,
+            self.page_height * scaled_height,
+        )?;
+
+        // Center the image.
+        let x = (1.0 - scaled_width) / 2.0;
+        // Position image.
+        let y = *y_fraction - scaled_height;
+        image_object.translate(
+            PdfPoints::new(self.page_width * x),
+            PdfPoints::new(self.page_height * y),
+        )?;
+
+        let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
+        current_page.objects_mut().add_image_object(image_object)?;
+
+        *y_fraction -= y;
+
         Ok(())
     }
 
