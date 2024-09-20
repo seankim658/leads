@@ -25,7 +25,7 @@ Currently supports `.csv`, `.tsv`, and `.parquet` files for inputs and `.pdf` fi
     - [x] Skewness and kurtosis.
   - Missing value analysis:
     - [x] Count and percentage of missing values per column.
-    - [ ] Visualization of missing value patterns.
+    - [x] Visualization of missing value patterns.
   - Distribution analysis:
     - [ ] Normality tests (Shapiro-Wilk, Anderson-Darling).
     - [ ] Q-Q plots.
