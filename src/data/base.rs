@@ -11,8 +11,9 @@
 
 use crate::{
     data::{
-        descriptive::DescriptiveAnalysis, missing_values::MissingValueAnalysis,
-        visualizations::VisualizationManager,
+        descriptive::DescriptiveAnalysis,
+        missing_values::MissingValueAnalysis,
+        visualizations::{SampleModeEnum, VisualizationManager},
     },
     LeadsError,
 };
@@ -129,6 +130,7 @@ impl DataInfo {
                 &lazy_df,
                 (descriptive_analysis.n_rows, descriptive_analysis.n_cols),
                 &missing_value_analysis,
+                SampleModeEnum::Full,
             )?)
         } else {
             None
