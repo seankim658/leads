@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="LEADS Crate"><title>leads - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="leads" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../leads/index.html">leads</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#enums">Enums</a></li><li><a href="#types">Type Aliases</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">leads</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/leads/lib.rs.html#1-92">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="leads-crate"><a class="doc-anchor" href="#leads-crate">§</a>LEADS Crate</h2>
+<p>LEADS is a <strong>L</strong>azy <strong>E</strong>xploratory <strong>A</strong>nalysis <strong>D</strong>ata <strong>S</strong>ummarizer.</p>
+<p>Writing the same boilerplate exploratory analysis code in a Juptyer notebook or Excel
+spreadsheet for each new dataset can be tedious. This crate offers functionality for generating
+automatic exploratory analysis results for a dataset.</p>
+<h3 id="quickstart"><a class="doc-anchor" href="#quickstart">§</a>Quickstart</h3>
+<p>TODO</p>
+<h3 id="direct-dependencies"><a class="doc-anchor" href="#direct-dependencies">§</a>Direct Dependencies</h3>
+<ul>
+<li><a href="https://docs.rs/chrono/0.4.38/chrono/index.html">chrono-0.4.38</a> used for date and time
+functionality.</li>
+<li><a href="https://docs.rs/clap/4.5.8/clap/index.html">clap-4.5.8</a> used for command line argument
+handling when run in comand line mode.</li>
+<li><a href="https://docs.rs/colored/2.1.0/colored/index.html">colored-2.1.0</a> used for colored terminal text
+when run in command line mode.</li>
+<li><a href="https://docs.rs/indexmap/2.3.0/indexmap/index.html">indexmap-2.3.0</a> used for ordered hash tables
+for processing data columns in a consistent order.</li>
+<li><a href="https://docs.rs/indicatif/0.17.8/indicatif/index.html">indicatif-0.17.8</a> used for progress bar
+functionality when run in command line mode.</li>
+<li><a href="https://docs.rs/pdfium-render/0.8.22/pdfium_render/index.html">pdfium-render-0.8.22</a> used for Rust
+bindings to Pdfium for creating PDF reports.</li>
+<li><a href="https://docs.rs/polars/0.41.3/polars/index.html">polars-0.41.3</a> used for performing
+operations on the dataset.
+<ul>
+<li>Opt-in features:
+<ul>
+<li><a href="https://docs.rs/polars-lazy/0.41.3/polars_lazy/index.html">polars-lazy-0.41.3</a> for the
+Polars lazy API.</li>
+<li><a href="https://docs.rs/polars-parquet/0.41.3/polars_parquet/index.html">polars-parquet-0.41.3</a> for support for reading parquet files.</li>
+<li><strong>moment</strong> for kurtosis and skew statistics.</li>
+<li><strong>dtype-array</strong> for array data types.</li>
+<li><strong>random</strong> for random sampling of the dataset.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="https://docs.rs/thiserror/1.0.63/thiserror/index.html">thiserror-1.0.63</a> for defining library errors.</li>
+<li><a href="https://docs.rs/plotters/latest/plotters/">plotters-0.3.7</a> for generating visualizations.</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="data/index.html" title="mod leads::data">data</a></div></li><li><div class="item-name"><a class="mod" href="prelude/index.html" title="mod leads::prelude">prelude</a></div></li><li><div class="item-name"><a class="mod" href="report/index.html" title="mod leads::report">report</a></div></li><li><div class="item-name"><a class="mod" href="spinner/index.html" title="mod leads::spinner">spinner</a></div><div class="desc docblock-short">Spinner Module</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.LeadsError.html" title="enum leads::LeadsError">LeadsError</a></div><div class="desc docblock-short">High level errors in the LEADS crate.</div></li></ul><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="type" href="type.LeadsResult.html" title="type leads::LeadsResult">LeadsResult</a></div><div class="desc docblock-short">LEADS result type alias, used for handling results throughout the crate.</div></li></ul></section></div></main></body></html>

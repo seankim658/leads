@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["print_status","setup_spinner"]};

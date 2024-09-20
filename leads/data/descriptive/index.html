@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Descriptive Analysis Module"><title>leads::data::descriptive - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="leads" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../leads/index.html">leads</a><span class="version">0.1.0</span></h2></div><h2 class="location"><a href="#">Module descriptive</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section><h2><a href="../index.html">In leads::data</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../../index.html">leads</a>::<wbr><a href="../index.html">data</a>::<wbr><a class="mod" href="#">descriptive</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../../src/leads/data/descriptive.rs.html#1-325">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="descriptive-analysis-module"><a class="doc-anchor" href="#descriptive-analysis-module">§</a>Descriptive Analysis Module</h2>
+<p>This module handles the calculation and storage of basic descriptive analysis results for datasets.
+It provides structures and methods to compute and access various statistical measures for numerical
+features in a given dataset.</p>
+<h3 id="design-overview"><a class="doc-anchor" href="#design-overview">§</a>Design Overview</h3>
+<p>The module is built around two main structures:</p>
+<ul>
+<li><code>DescriptiveAnalysis</code>: Represents the overall analysis results for a dataset.</li>
+<li><code>FeatureStats</code>: Holds the detailed statistical measures for all numerical features.</li>
+</ul>
+<h4 id="descriptiveanalysis-structure"><a class="doc-anchor" href="#descriptiveanalysis-structure">§</a>DescriptiveAnalysis Structure</h4>
+<p><code>DescriptiveAnalysis</code> serves as the main interface for accessing analysis results. It contains:</p>
+<ul>
+<li>Basic dataset information (number of rows and columns)</li>
+<li>A <code>FeatureStats</code> instance holding detailed statistics</li>
+<li>Mapping structures to efficiently access specific statistics for each feature</li>
+</ul>
+<h4 id="featurestats-design"><a class="doc-anchor" href="#featurestats-design">§</a>FeatureStats Design</h4>
+<p><code>FeatureStats</code> is implemented as a wrapper around a Polars DataFrame with a specific structure,
+it contains only one row, where each column represents a specific statistic for a feature.</p>
+<p>The single-row structure has certain characteristics:</p>
+<ol>
+<li>It leverages Polars’ columnar storage, which may affect performance and memory usage</li>
+<li>Allows for vectorized operations across all features simultaneously</li>
+<li>Requires additional mapping structures for data access</li>
+</ol>
+<p>To navigate this structure, two mapping structures are used:</p>
+<ul>
+<li><code>column_map</code>: Maps statistic names to their respective column indices</li>
+<li><code>feature_indices</code>: Maps feature names to their starting column index in the DataFrame</li>
+</ul>
+<p>This approach enables O(1) access to any specific statistic for any feature, given the
+current DataFrame structure.</p>
+<p>Note: The efficacy of this design may vary depending on specific use cases and dataset
+characteristics. Future optimizations might involve reassessing this structure based on
+performance profiling and specific application needs.</p>
+<h4 id="efficient-access-to-statistics"><a class="doc-anchor" href="#efficient-access-to-statistics">§</a>Efficient Access to Statistics</h4>
+<p>To provide fast access to specific statistics without multiple DataFrame lookups, the module uses:</p>
+<ul>
+<li><code>column_map</code>: Maps statistic names to column indices in the FeatureStats DataFrame</li>
+<li><code>feature_indices</code>: Maps feature names to row indices in the FeatureStats DataFrame</li>
+</ul>
+<p>This approach allows for O(1) access to any specific statistic for any feature.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>To perform descriptive analysis on a dataset:</p>
+<ol>
+<li>Create a <code>DescriptiveAnalysis</code> instance using a LazyFrame and its schema</li>
+<li>Access overall dataset information directly from the <code>DescriptiveAnalysis</code> instance</li>
+<li>Use provided methods to retrieve specific statistics for features of interest</li>
+</ol>
+<h3 id="error-handling"><a class="doc-anchor" href="#error-handling">§</a>Error Handling</h3>
+<p>The module uses a custom <code>DescriptiveError</code> enum to handle various error scenarios, including:</p>
+<ul>
+<li>Polars operation failures</li>
+<li>Invalid column or index access attempts</li>
+<li>Data type conversion issues</li>
+</ul>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<p>TODO</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code></code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.DescriptiveAnalysis.html" title="struct leads::data::descriptive::DescriptiveAnalysis">DescriptiveAnalysis</a></div><div class="desc docblock-short">Struct to hold the overall descriptive analysis results.</div></li><li><div class="item-name"><a class="struct" href="struct.FeatureStats.html" title="struct leads::data::descriptive::FeatureStats">FeatureStats</a></div><div class="desc docblock-short">Struct to hold descriptive analysis results for all features.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.DescriptiveError.html" title="enum leads::data::descriptive::DescriptiveError">DescriptiveError</a></div><div class="desc docblock-short">The error types for the descriptive analysis module.</div></li></ul></section></div></main></body></html>
