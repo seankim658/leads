@@ -610,9 +610,9 @@ impl<'a> PageManager<'a> {
                 .get(&ReportSection::MissingValues)
             {
                 for (_, plot_path) in missing_values_plots {
-                    y_fraction -= 2.0 * line_height_fraction;
+                    y_fraction -= 0.5 * line_height_fraction;
                     self.add_image(plot_path, 0.8, 0.6, &mut y_fraction)?;
-                    y_fraction -= 2.0 * line_height_fraction;
+                    y_fraction -= 0.5 * line_height_fraction;
                 }
             }
         }
@@ -736,11 +736,13 @@ impl<'a> PageManager<'a> {
         let img = ImageReader::open(path)?.decode()?;
         let (img_width, img_height) = img.dimensions();
 
-        // Calculate scaling factors.
+        // Calculate scaling factor.
         let width_scale = max_width / (img_width as f32 / self.page_width);
         let height_scale = max_height / (img_height as f32 / self.page_height);
+        // Pick the smaller value as the scaling factor to preserve aspect ratio.
         let scale = width_scale.min(height_scale);
 
+        // Calculate the scaled dimensions.
         let scaled_width = (img_width as f32 * scale) / self.page_width;
         let scaled_height = (img_height as f32 * scale) / self.page_height;
 
@@ -768,7 +770,7 @@ impl<'a> PageManager<'a> {
         let mut current_page = self.document.pages().get(self.current_page as u16).unwrap();
         current_page.objects_mut().add_image_object(image_object)?;
 
-        *y_fraction -= y;
+        *y_fraction = y;
 
         Ok(())
     }
