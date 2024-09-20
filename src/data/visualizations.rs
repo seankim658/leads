@@ -1,6 +1,6 @@
 //! Visualization Module
 //!
-//! This module serves as the entry point for generating visualizations using the 
+//! This module serves as the entry point for generating visualizations using the
 //! [plotters](https://docs.rs/plotters/0.3.7/plotters/) crate. It manages the creation
 //! and organization of various plot types.
 
@@ -10,9 +10,23 @@ use polars::prelude::*;
 use std::{collections::HashMap, path::PathBuf};
 use thiserror::Error;
 
+/// Enum for the sample of the dataset to generate visualizations for.
+pub enum SampleModeEnum {
+    /// Use a strict limit for sampling of the data.
+    Limit(u64),
+    /// Use a certain ratio for sampling of the data.
+    Ratio(f64),
+    /// Use the full dataset.
+    Full,
+}
+
 /// The error types for the visualization module.
 #[derive(Error, Debug)]
 pub enum VisualizationError {
+    /// Occurs when sampling the lazy frame fails.
+    #[error("Error sampling the dataframe: {0}")]
+    DataFrameSamplingError(String),
+
     /// Occurs when creating the missing values plots fails.
     #[error("Missing values plot error: {0}")]
     MissingValuesPlotting(#[from] crate::data::viz_lib::missing_value_viz::MissingValuesPlotError),
@@ -55,18 +69,72 @@ impl VisualizationManager {
         lazy_df: &LazyFrame,
         shape: (u64, u64),
         missing_values_analysis: &MissingValueAnalysis,
+        sampling_mode: SampleModeEnum,
     ) -> Result<Self, VisualizationError> {
         let mut visualizations: HashMap<ReportSection, HashMap<String, PathBuf>> = HashMap::new();
 
-        // Generate missing values heatmap.
-        let missing_value_heatmap = missing_value_viz::build_missing_data_matrix(
-            lazy_df,
-            missing_values_analysis,
-            plot_dir,
-        )?;
-        let missing_value_plots = HashMap::from([missing_value_heatmap]);
+        let df = sample_dataframe(lazy_df, sampling_mode)?;
+
+        // Generate missing values visualizations.
+        let missing_value_plots = missing_value_viz::build_all_visualizations(&df, missing_values_analysis, plot_dir)?;
         visualizations.insert(ReportSection::MissingValues, missing_value_plots);
 
         Ok(Self { visualizations })
+    }
+}
+
+/// Collects a lazy frame into a dataframe and applies the sampling if applicable.
+///
+/// Type of sampling depends on the global `SAMPLE_MODE` setting. TODO : Should this eventually be
+/// abstracted into a CLI argument?
+///
+/// ### Parameters
+///
+/// - `lazy_df`: Reference to the dataset `LazyFrame`.
+///
+/// ### Returns
+///
+/// - `Result<DataFrame, MissingValuesPlotError>`: The collected dataframe or the
+/// `MissingValuesPlotError` error.
+pub fn sample_dataframe(
+    lazy_df: &LazyFrame,
+    sampling_mode: SampleModeEnum,
+) -> Result<DataFrame, VisualizationError> {
+    match sampling_mode {
+        SampleModeEnum::Limit(limit) => {
+            let df = lazy_df
+                .clone()
+                .select([all().sample_n(lit(limit), false, false, None)])
+                .collect()
+                .map_err(|e| {
+                    VisualizationError::DataFrameSamplingError(format!(
+                        "Couldn't collect limit ({}) sampled dataframe: {}",
+                        limit, e
+                    ))
+                })?;
+            Ok(df)
+        }
+        SampleModeEnum::Ratio(ratio) => {
+            let df = lazy_df
+                .clone()
+                .select([all().sample_frac(lit(ratio), false, false, None)])
+                .collect()
+                .map_err(|e| {
+                    VisualizationError::DataFrameSamplingError(format!(
+                        "Couldn't collect ratio ({}) sampled dataframe: {}",
+                        ratio, e
+                    ))
+                })?;
+            Ok(df)
+        }
+        SampleModeEnum::Full => {
+            let df = lazy_df.clone().collect().map_err(|e| {
+                VisualizationError::DataFrameSamplingError(format!(
+                    "Couldn't collect lazy frame: {}",
+                    e
+                ))
+            })?;
+            Ok(df)
+        }
     }
 }
